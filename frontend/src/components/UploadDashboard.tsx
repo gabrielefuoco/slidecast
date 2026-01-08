@@ -200,83 +200,58 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
         const packsToProcess = slidepacks.filter(p => p.status === 'idle' || p.status === 'error');
 
         // Mark them as waiting/uploading
-        setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'waiting' } : p));
-        setSlidepacks(prev => prev.map(s => packsToProcess.find(ptp => ptp.id === s.id) ? { ...s, status: 'waiting' } : s));
+        // No longer marking as waiting/uploading in UI, as we clear immediately.
+        // setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'waiting' } : p));
+        // setSlidepacks(prev => prev.map(s => packsToProcess.find(ptp => ptp.id === s.id) ? { ...s, status: 'waiting' } : s));
 
         // EXECUTION - 1. Handle Pairs (Batch)
         if (pairsToProcess.length > 0) {
-            // Update UI to uploading
-            setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'uploading' } : p));
+            // Update UI to uploading (No longer needed, clearing UI immediately)
+            // setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'uploading' } : p));
 
-            try {
-                // If Single Pair -> /generate
-                if (pairsToProcess.length === 1 && packsToProcess.length === 0) {
-                    const pair = pairsToProcess[0];
-                    const formData = new FormData();
-                    formData.append('audio', pair.audio);
-                    formData.append('markdown', pair.md);
+            // Implementation: We'll stick to existing APIs for now but clear UI optimistically.
+            // If it's a batch upload, it returns immediately anyway.
 
-                    const res = await fetch('http://localhost:8000/generate', { method: 'POST', body: formData });
-                    if (!res.ok) throw new Error("Generation failed");
-                    const data = await res.json();
+            // REFACTOR: Use /upload-batch for single pairs too.
+            const formData = new FormData();
+            pairsToProcess.forEach(pair => {
+                // We need to use filenames that match for the backend logic
+                const cleanName = pair.audio.name.replace(/\.[^/.]+$/, "");
+                const extAudio = pair.audio.name.split('.').pop();
+                const extMd = pair.md.name.split('.').pop();
+                formData.append('audio_files', new File([pair.audio], `${cleanName}.${extAudio}`, { type: pair.audio.type }));
+                formData.append('md_files', new File([pair.md], `${cleanName}.${extMd}`, { type: pair.md.type }));
+            });
 
-                    // Mark Done
-                    setPairs(prev => prev.map(p => p.id === pair.id ? { ...p, status: 'done' } : p));
-
-                    // Allow small delay for animation then finish
-                    setTimeout(() => onUploadComplete(data, pair.audio), 1000);
-                    return; // Early exit for single flow
-                }
-
-                // Else -> /upload-batch
-                const formData = new FormData();
-                pairsToProcess.forEach(pair => {
-                    const commonName = pair.id;
-                    const extAudio = pair.audio.name.split('.').pop();
-                    const extMd = pair.md.name.split('.').pop();
-                    formData.append('audio_files', new File([pair.audio], `${commonName}.${extAudio}`, { type: pair.audio.type }));
-                    formData.append('md_files', new File([pair.md], `${commonName}.${extMd}`, { type: pair.md.type }));
-                });
-
-                const res = await fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error("Batch upload failed");
-
-                // Mark all pairs as Done
-                setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'done' } : p));
-
-            } catch (err) {
-                // Mark all as Error
-                setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'error', error: 'Upload failed' } : p));
-            }
+            // Use batch endpoint
+            fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData })
+                .catch(err => console.error("Upload failed in background", err));
         }
 
-        // EXECUTION - 2. Handle Slidepacks (Sequential)
-        for (const pack of packsToProcess) {
-            setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'uploading' } : s));
-            try {
-                const formData = new FormData();
-                formData.append('slidepack', pack.file);
-                const res = await fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error("Import failed");
-                const result = await res.json();
+        // EXECUTION - 2. Handle Slidepacks (Fire & Forget)
+        // /import-slidepack is blocking/sync.
+        // We iterate and send.
+        packsToProcess.forEach(async (pack) => {
+            // setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'uploading' } : s)); // No longer needed
+            const formData = new FormData();
+            formData.append('slidepack', pack.file);
+            // We just trigger it. It might take a moment to upload, but we clear UI.
+            fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData })
+                .catch(err => console.error("Slidepack import failed", err));
+        });
 
-                // If this was the ONLY thing, open it
-                if (packsToProcess.length === 1 && pairsToProcess.length === 0) {
-                    setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'done' } : s));
-                    // Fetch audio blob
-                    const audioRes = await fetch(`http://localhost:8000${result.audio_url}`);
-                    const audioBlob = await audioRes.blob();
-                    setTimeout(() => onUploadComplete(result.presentation, new File([audioBlob], "audio.mp3")), 1000);
-                    return;
-                }
-
-                setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'done' } : s));
-            } catch (err) {
-                setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'error', error: 'Import failed' } : s));
-            }
-        }
-
+        // FIRE & FORGET: Clear everything immediately
+        setPairs([]);
+        setOrphans([]);
+        setSlidepacks([]);
         setIsDispatching(false);
+
+        // Notify user vaguely (The Global Bar takes over)
+        // onUploadComplete is for "Redirect to Player" usually.
+        // We probably want to switch to Library view?
+        // The prompt says "spostare l'utente alla Libreria" in previous steps,
+        // but for "Fire & Forget" staying on dashboard to upload MORE is also valid.
+        // Let's NOT redirect automatically, just clear. User sees Global Bar.
     };
 
 

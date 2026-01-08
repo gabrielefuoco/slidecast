@@ -730,8 +730,18 @@ def merge_slidepacks(request: MergeRequest):
 
 @app.get("/jobs/pending")
 def get_pending_jobs():
-    """Returns count of processing jobs."""
+    """Returns list of processing jobs."""
     db = SessionLocal()
-    count = db.query(SlidePack).filter(SlidePack.status == "processing").count()
+    jobs = db.query(SlidePack).filter(SlidePack.status == "processing").all()
+    
+    result = []
+    for job in jobs:
+        result.append({
+            "id": job.id,
+            "title": job.title,
+            "status": job.status,
+            "created_at": job.created_at.isoformat() if job.created_at else None
+        })
+    
     db.close()
-    return {"pending_count": count}
+    return {"jobs": result}
