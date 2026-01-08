@@ -58,3 +58,6 @@ backend/.env
 # Slidecast specific
 backend/uploads/
 backend/temp_audio/
+
+# Storage
+storage/
