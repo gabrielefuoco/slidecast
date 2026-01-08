@@ -3,7 +3,8 @@ import os
 import logging
 import zipfile
 import uuid
-from typing import Optional
+from typing import Optional, List
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file BEFORE importing services
@@ -16,6 +17,8 @@ from fastapi.responses import FileResponse
 from services.whisper import WhisperService
 from services.llm import LLMService
 from services.sync import SyncService
+from pydub import AudioSegment
+
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -206,6 +209,8 @@ async def sync_slides(
 from typing import List
 from fastapi import BackgroundTasks
 from database import SessionLocal, init_db, Course, SlidePack
+from pydantic import BaseModel
+
 from datetime import datetime
 
 # Init DB on module load
@@ -473,3 +478,258 @@ def get_slidepack(pack_id: int):
         "audio_url": audio_url
     }
 
+
+# --- EDITING & MANIPULATION ENDPOINTS ---
+
+class RenameRequest(BaseModel):
+    title: str
+
+class MoveRequest(BaseModel):
+    course_id: int
+
+class MergeRequest(BaseModel):
+    title: str
+    pack_ids: List[int]
+
+@app.patch("/courses/{course_id}")
+def rename_course(course_id: int, request: RenameRequest):
+    db = SessionLocal()
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        db.close()
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    course.title = request.title
+    db.commit()
+    db.refresh(course)
+    db.close()
+    return {"message": "Course renamed", "course": course}
+
+@app.delete("/courses/{course_id}")
+def delete_course(course_id: int):
+    db = SessionLocal()
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        db.close()
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Delete files
+    # Check if there are slidepacks and delete their folders
+    for pack in course.slidepacks:
+        if pack.file_path and os.path.exists(pack.file_path):
+            try:
+                shutil.rmtree(pack.file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete pack folder {pack.file_path}: {e}")
+    
+    db.delete(course)
+    db.commit()
+    db.close()
+    return {"message": "Course deleted"}
+
+@app.patch("/slidepacks/{pack_id}")
+def update_slidepack(pack_id: int, 
+                     rename: Optional[RenameRequest] = None, 
+                     move: Optional[MoveRequest] = None):
+    """
+    Unified endpoint to Rename OR Move a slidepack.
+    Pass 'rename' body to rename.
+    Pass 'move' body to move.
+    """
+    # Note: FastAPI might struggle with two optional bodies like this in some versions,
+    # but sticking to separate endpoints is cleaner. I will separate them below for clarity 
+    # and to avoid "body" conflicts or validation issues.
+    pass 
+
+@app.patch("/slidepacks/{pack_id}/rename")
+def rename_slidepack(pack_id: int, request: RenameRequest):
+    db = SessionLocal()
+    pack = db.query(SlidePack).filter(SlidePack.id == pack_id).first()
+    if not pack:
+        db.close()
+        raise HTTPException(status_code=404, detail="SlidePack not found")
+    
+    pack.title = request.title
+    
+    # Also update the internal JSON if it exists? 
+    # Good practice to keep them in sync, but maybe expansive. 
+    # Let's just update DB for now, user sees DB title.
+    
+    db.commit()
+    db.close()
+    return {"message": "SlidePack renamed"}
+
+@app.patch("/slidepacks/{pack_id}/move")
+def move_slidepack(pack_id: int, request: MoveRequest):
+    db = SessionLocal()
+    pack = db.query(SlidePack).filter(SlidePack.id == pack_id).first()
+    if not pack:
+        db.close()
+        raise HTTPException(status_code=404, detail="SlidePack not found")
+        
+    target_course = db.query(Course).filter(Course.id == request.course_id).first()
+    if not target_course:
+        db.close()
+        raise HTTPException(status_code=404, detail="Target Course not found")
+    
+    # Ideally we should move the files on disk too to keep structure organized 
+    # (storage/courses/{course_id}/{pack_id}), but the current code uses 
+    # pack.file_path which is absolute string path.
+    # So moving files is optional IF we trust file_path column.
+    # But let's move them to keep folders clean.
+    
+    old_path = pack.file_path
+    if old_path and os.path.exists(old_path):
+        new_dir = f"storage/courses/{request.course_id}/{pack.id}"
+        if old_path != new_dir:
+            try:
+                # Ensure target parent exists
+                os.makedirs(f"storage/courses/{request.course_id}", exist_ok=True)
+                shutil.move(old_path, new_dir)
+                pack.file_path = new_dir
+            except Exception as e:
+                logger.error(f"Failed to move files: {e}")
+                # If move fails, we might just update the ID and keep files where they are?
+                # No, safer to fail or just update ID if move isn't critical.
+                # Let's abort if files exist but can't be moved to avoid inconsistency.
+                db.close()
+                raise HTTPException(status_code=500, detail=f"Failed to move files: {e}")
+
+    pack.course_id = request.course_id
+    db.commit()
+    db.close()
+    return {"message": "SlidePack moved"}
+
+@app.delete("/slidepacks/{pack_id}")
+def delete_slidepack(pack_id: int):
+    db = SessionLocal()
+    pack = db.query(SlidePack).filter(SlidePack.id == pack_id).first()
+    if not pack:
+        db.close()
+        raise HTTPException(status_code=404, detail="SlidePack not found")
+    
+    # Delete files
+    if pack.file_path and os.path.exists(pack.file_path):
+        try:
+            shutil.rmtree(pack.file_path)
+        except Exception as e:
+            logger.warning(f"Failed to delete pack folder {pack.file_path}: {e}")
+            
+    db.delete(pack)
+    db.commit()
+    db.close()
+    return {"message": "SlidePack deleted"}
+
+@app.post("/slidepacks/merge")
+def merge_slidepacks(request: MergeRequest):
+    """
+    Merge multiple slidepacks into one.
+    - Concatenates slides.
+    - Concatenates audio.
+    - Creates new SlidePack entry.
+    """
+    if len(request.pack_ids) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 packs to merge")
+        
+    db = SessionLocal()
+    packs = []
+    for pid in request.pack_ids:
+        p = db.query(SlidePack).filter(SlidePack.id == pid).first()
+        if not p or p.status != 'completed':
+            db.close()
+            raise HTTPException(status_code=400, detail=f"Pack {pid} invalid or not completed")
+        packs.append(p)
+        
+    # Assume all packs must belong to the same course? Or allow cross-course merge?
+    # Let's put the result in the course of the first pack.
+    target_course_id = packs[0].course_id
+    
+    # Create new logical pack
+    new_pack = SlidePack(title=request.title, status="processing", course_id=target_course_id)
+    db.add(new_pack)
+    db.commit()
+    db.refresh(new_pack)
+    
+    try:
+        # Prepare merged data
+        merged_slides = []
+        combined_audio = AudioSegment.empty()
+        
+        current_time_offset = 0.0
+        
+        output_dir = f"storage/courses/{target_course_id}/{new_pack.id}"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        import json
+        
+        for p in packs:
+            # 1. Load JSON
+            json_path = os.path.join(p.file_path, "slides.json")
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            # 2. Load Audio
+            # Find audio file
+            audio_file = None
+            for f in os.listdir(p.file_path):
+                if f.startswith("audio."):
+                    audio_file = f
+                    break
+            if not audio_file:
+                raise Exception(f"Audio missing for pack {p.id}")
+                
+            audio_path = os.path.join(p.file_path, audio_file)
+            segment = AudioSegment.from_file(audio_path)
+            duration_sec = len(segment) / 1000.0
+            
+            # 3. Adjust timestamps and append slides
+            for slide in data['slides']:
+                slide['timestamp_start'] += current_time_offset
+                slide['timestamp_end'] += current_time_offset
+                merged_slides.append(slide)
+                
+            # 4. Append Audio
+            combined_audio += segment
+            current_time_offset += duration_sec
+            
+        # Save merged JSON
+        final_presentation = {
+            "metadata": {
+                "title": request.title,
+                "duration": current_time_offset
+            },
+            "slides": merged_slides
+        }
+        
+        with open(f"{output_dir}/slides.json", "w", encoding='utf-8') as f:
+            json.dump(final_presentation, f, indent=2)
+            
+        # Save merged Audio
+        # We'll save as mp3 by default
+        final_audio_path = f"{output_dir}/audio.mp3"
+        combined_audio.export(final_audio_path, format="mp3")
+        
+        # Complete
+        new_pack.status = 'completed'
+        new_pack.file_path = output_dir
+        db.commit()
+        
+        result = {"message": "Merge successful", "new_pack_id": new_pack.id}
+        
+    except Exception as e:
+        logger.error(f"Merge failed: {e}", exc_info=True)
+        new_pack.status = 'failed'
+        db.commit()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+        
+    return result
+
+@app.get("/jobs/pending")
+def get_pending_jobs():
+    """Returns count of processing jobs."""
+    db = SessionLocal()
+    count = db.query(SlidePack).filter(SlidePack.status == "processing").count()
+    db.close()
+    return {"pending_count": count}
