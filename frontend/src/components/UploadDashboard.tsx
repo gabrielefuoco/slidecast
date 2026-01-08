@@ -1,670 +1,557 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileAudio, FileText, FileJson, Package, Loader2, Play, RefreshCw, ArrowRight, Link, Trash2, Plus } from 'lucide-react';
+import { FileAudio, FileText, Package, Upload, ArrowRight, Loader2, Link as LinkIcon, Trash2, AlertCircle, CheckCircle, Ban } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+// Types
 interface UploadDashboardProps {
     onUploadComplete: (data: any, audioFile: File) => void;
 }
 
-type Mode = 'generate' | 'import' | 'slidepack' | 'batch';
+type ProcessingStatus = 'idle' | 'waiting' | 'uploading' | 'done' | 'error';
 
 interface FilePair {
     id: string;
     audio: File;
     md: File;
+    status: ProcessingStatus;
+    error?: string;
 }
 
+interface OrphanFile {
+    id: string;
+    file: File;
+    type: 'audio' | 'text';
+}
+
+interface SlidepackItem {
+    id: string;
+    file: File;
+    status: ProcessingStatus;
+    error?: string;
+}
+
+const generateId = () => crypto.randomUUID();
+
 export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComplete }) => {
-    const [mode, setMode] = useState<Mode>('generate');
-    // Single file states
-    const [audioFile, setAudioFile] = useState<File | null>(null);
-    const [mdFile, setMdFile] = useState<File | null>(null);
-    const [jsonFile, setJsonFile] = useState<File | null>(null);
-    const [slidepackFile, setSlidepackFile] = useState<File | null>(null);
-
-    // Batch file states (Pool + Pairs)
-    const [unpairedAudio, setUnpairedAudio] = useState<File[]>([]);
-    const [unpairedMd, setUnpairedMd] = useState<File[]>([]);
+    // State
     const [pairs, setPairs] = useState<FilePair[]>([]);
+    const [orphans, setOrphans] = useState<OrphanFile[]>([]);
+    const [slidepacks, setSlidepacks] = useState<SlidepackItem[]>([]);
 
-    // Selection state for manual pairing
-    const [selectedAudioIdx, setSelectedAudioIdx] = useState<number | null>(null);
-    const [selectedMdIdx, setSelectedMdIdx] = useState<number | null>(null);
+    // Global processing state (is dispatching?)
+    const [isDispatching, setIsDispatching] = useState(false);
 
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+    // Drag State for Validation
+    const [draggedItem, setDraggedItem] = useState<{ id: string, type: 'audio' | 'text' } | null>(null);
 
-    // Helper to generate IDs
-    const generateId = () => crypto.randomUUID();
+    // Helpers
+    const getBaseName = (filename: string) => filename.replace(/\.[^/.]+$/, "");
 
-    const addBatchFiles = (newAudio: File[], newMd: File[]) => {
+    // 1. Files Handler & Auto-Pairing
+    const processFiles = (newFiles: File[]) => {
+        const newAudio: File[] = [];
+        const newMd: File[] = [];
+        const newPackFiles: File[] = [];
+
+        newFiles.forEach(f => {
+            const ext = f.name.toLowerCase().split('.').pop();
+            if (['mp3', 'wav', 'm4a'].includes(ext || '')) {
+                newAudio.push(f);
+            } else if (['md', 'txt'].includes(ext || '')) {
+                newMd.push(f);
+            } else if (['slidepack', 'zip'].includes(ext || '')) {
+                newPackFiles.push(f);
+            }
+        });
+
+        // Add Slidepacks directly
+        if (newPackFiles.length > 0) {
+            setSlidepacks(prev => [
+                ...prev,
+                ...newPackFiles.map(f => ({ id: generateId(), file: f, status: 'idle' as const }))
+            ]);
+        }
+
+        // Auto-Pairing Logic
+        let currentOrphans = [...orphans];
         let currentPairs = [...pairs];
-        let currentAudio = [...unpairedAudio, ...newAudio];
-        let currentMd = [...unpairedMd, ...newMd];
 
-        const newPairs: FilePair[] = [];
-        const remainingAudio: File[] = [];
-        // Mutable tracking for MD usage in this operation
+        const availableAudio = [...currentOrphans.filter(o => o.type === 'audio').map(o => o.file), ...newAudio];
+        const availableMd = [...currentOrphans.filter(o => o.type === 'text').map(o => o.file), ...newMd];
+
+        const nextPairs: FilePair[] = [...currentPairs];
+        const nextOrphans: OrphanFile[] = [];
         const usedMdIndices = new Set<number>();
 
-        const getBase = (name: string) => name.replace(/\.[^/.]+$/, "");
-
-        currentAudio.forEach(audio => {
-            const audioBase = getBase(audio.name);
-            const matchIndex = currentMd.findIndex((md, idx) =>
-                !usedMdIndices.has(idx) && getBase(md.name) === audioBase
+        availableAudio.forEach(audio => {
+            const audioBase = getBaseName(audio.name);
+            const matchIndex = availableMd.findIndex((md, idx) =>
+                !usedMdIndices.has(idx) && getBaseName(md.name) === audioBase
             );
 
             if (matchIndex !== -1) {
-                usedMdIndices.add(matchIndex);
-                newPairs.push({
+                nextPairs.push({
                     id: generateId(),
-                    audio,
-                    md: currentMd[matchIndex]
+                    audio: audio,
+                    md: availableMd[matchIndex],
+                    status: 'idle'
                 });
+                usedMdIndices.add(matchIndex);
             } else {
-                remainingAudio.push(audio);
+                nextOrphans.push({ id: generateId(), file: audio, type: 'audio' });
             }
         });
 
-        const remainingMd = currentMd.filter((_, idx) => !usedMdIndices.has(idx));
+        availableMd.forEach((md, idx) => {
+            if (!usedMdIndices.has(idx)) {
+                nextOrphans.push({ id: generateId(), file: md, type: 'text' });
+            }
+        });
 
-        setPairs([...currentPairs, ...newPairs]);
-        setUnpairedAudio(remainingAudio);
-        setUnpairedMd(remainingMd);
+        setPairs(nextPairs);
+        setOrphans(nextOrphans);
     };
 
-    const handleManualPair = () => {
-        if (selectedAudioIdx === null || selectedMdIdx === null) return;
+    const onDrop = useCallback((acceptedFiles: File[]) => {
+        if (isDispatching) return; // Prevent drops during upload
+        processFiles(acceptedFiles);
+    }, [orphans, pairs, slidepacks, isDispatching]);
 
-        const audio = unpairedAudio[selectedAudioIdx];
-        const md = unpairedMd[selectedMdIdx];
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop,
+        disabled: isDispatching,
+        accept: {
+            'audio/*': ['.mp3', '.wav', '.m4a'],
+            'text/markdown': ['.md'],
+            'text/plain': ['.txt'],
+            'application/zip': ['.slidepack', '.zip']
+        }
+    });
 
-        const newPair: FilePair = {
-            id: generateId(),
-            audio,
-            md
-        };
-
-        setPairs([...pairs, newPair]);
-
-        setUnpairedAudio(unpairedAudio.filter((_, i) => i !== selectedAudioIdx));
-        setUnpairedMd(unpairedMd.filter((_, i) => i !== selectedMdIdx));
-
-        setSelectedAudioIdx(null);
-        setSelectedMdIdx(null);
+    // 2. Drag & Drop Validation Logic
+    const handleDragStart = (e: React.DragEvent, id: string, type: 'audio' | 'text') => {
+        if (isDispatching) {
+            e.preventDefault();
+            return;
+        }
+        setDraggedItem({ id, type });
+        e.dataTransfer.setData('text/plain', JSON.stringify({ id, type }));
+        e.dataTransfer.effectAllowed = 'move';
     };
 
-    const handleUnpair = (pairId: string) => {
-        const pair = pairs.find(p => p.id === pairId);
+    const handleDragEnd = () => {
+        setDraggedItem(null);
+    };
+
+    const isDropAllowed = (targetType: 'audio' | 'text') => {
+        if (!draggedItem) return false;
+        return draggedItem.type !== targetType; // Must be different types
+    };
+
+    const handleDragOver = (e: React.DragEvent, targetType: 'audio' | 'text') => {
+        e.preventDefault();
+        if (!isDropAllowed(targetType)) {
+            e.dataTransfer.dropEffect = 'none';
+        } else {
+            e.dataTransfer.dropEffect = 'move';
+        }
+    };
+
+    const handleDropPair = (e: React.DragEvent, targetId: string, targetType: 'audio' | 'text') => {
+        e.preventDefault();
+        setDraggedItem(null);
+
+        if (!isDropAllowed(targetType)) return;
+
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const sourceId = data.id;
+
+            const sourceOrphan = orphans.find(o => o.id === sourceId);
+            const targetOrphan = orphans.find(o => o.id === targetId);
+
+            if (!sourceOrphan || !targetOrphan) return;
+
+            const audio = sourceOrphan.type === 'audio' ? sourceOrphan.file : targetOrphan.file;
+            const md = sourceOrphan.type === 'text' ? sourceOrphan.file : targetOrphan.file;
+
+            const newPair: FilePair = {
+                id: generateId(),
+                audio,
+                md,
+                status: 'idle'
+            };
+
+            setPairs([...pairs, newPair]);
+            setOrphans(orphans.filter(o => o.id !== sourceId && o.id !== targetId));
+
+        } catch (err) {
+            console.error("Drop pair error", err);
+        }
+    };
+
+    // 3. Dispatcher logic
+    const handleUnifiedSubmit = async () => {
+        setIsDispatching(true);
+
+        // Filter items to process
+        const pairsToProcess = pairs.filter(p => p.status === 'idle' || p.status === 'error');
+        const packsToProcess = slidepacks.filter(p => p.status === 'idle' || p.status === 'error');
+
+        // Mark them as waiting/uploading
+        setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'waiting' } : p));
+        setSlidepacks(prev => prev.map(s => packsToProcess.find(ptp => ptp.id === s.id) ? { ...s, status: 'waiting' } : s));
+
+        // EXECUTION - 1. Handle Pairs (Batch)
+        if (pairsToProcess.length > 0) {
+            // Update UI to uploading
+            setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'uploading' } : p));
+
+            try {
+                // If Single Pair -> /generate
+                if (pairsToProcess.length === 1 && packsToProcess.length === 0) {
+                    const pair = pairsToProcess[0];
+                    const formData = new FormData();
+                    formData.append('audio', pair.audio);
+                    formData.append('markdown', pair.md);
+
+                    const res = await fetch('http://localhost:8000/generate', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error("Generation failed");
+                    const data = await res.json();
+
+                    // Mark Done
+                    setPairs(prev => prev.map(p => p.id === pair.id ? { ...p, status: 'done' } : p));
+
+                    // Allow small delay for animation then finish
+                    setTimeout(() => onUploadComplete(data, pair.audio), 1000);
+                    return; // Early exit for single flow
+                }
+
+                // Else -> /upload-batch
+                const formData = new FormData();
+                pairsToProcess.forEach(pair => {
+                    const commonName = pair.id;
+                    const extAudio = pair.audio.name.split('.').pop();
+                    const extMd = pair.md.name.split('.').pop();
+                    formData.append('audio_files', new File([pair.audio], `${commonName}.${extAudio}`, { type: pair.audio.type }));
+                    formData.append('md_files', new File([pair.md], `${commonName}.${extMd}`, { type: pair.md.type }));
+                });
+
+                const res = await fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error("Batch upload failed");
+
+                // Mark all pairs as Done
+                setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'done' } : p));
+
+            } catch (err) {
+                // Mark all as Error
+                setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'error', error: 'Upload failed' } : p));
+            }
+        }
+
+        // EXECUTION - 2. Handle Slidepacks (Sequential)
+        for (const pack of packsToProcess) {
+            setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'uploading' } : s));
+            try {
+                const formData = new FormData();
+                formData.append('slidepack', pack.file);
+                const res = await fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error("Import failed");
+                const result = await res.json();
+
+                // If this was the ONLY thing, open it
+                if (packsToProcess.length === 1 && pairsToProcess.length === 0) {
+                    setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'done' } : s));
+                    // Fetch audio blob
+                    const audioRes = await fetch(`http://localhost:8000${result.audio_url}`);
+                    const audioBlob = await audioRes.blob();
+                    setTimeout(() => onUploadComplete(result.presentation, new File([audioBlob], "audio.mp3")), 1000);
+                    return;
+                }
+
+                setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'done' } : s));
+            } catch (err) {
+                setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'error', error: 'Import failed' } : s));
+            }
+        }
+
+        setIsDispatching(false);
+    };
+
+
+    const removePair = (id: string) => {
+        if (isDispatching) return;
+        const pair = pairs.find(p => p.id === id);
         if (!pair) return;
-
-        setPairs(pairs.filter(p => p.id !== pairId));
-        setUnpairedAudio([...unpairedAudio, pair.audio]);
-        setUnpairedMd([...unpairedMd, pair.md]);
-    };
-
-    const onDropAudio = useCallback((acceptedFiles: File[]) => {
-        if (mode === 'batch') {
-            addBatchFiles(acceptedFiles, []);
-        } else {
-            setAudioFile(acceptedFiles[0]);
-        }
-    }, [mode, pairs, unpairedAudio, unpairedMd]);
-
-    const onDropMd = useCallback((acceptedFiles: File[]) => {
-        if (mode === 'batch') {
-            addBatchFiles([], acceptedFiles);
-        } else {
-            setMdFile(acceptedFiles[0]);
-        }
-    }, [mode, pairs, unpairedAudio, unpairedMd]);
-
-    const onDropJson = useCallback((acceptedFiles: File[]) => {
-        setJsonFile(acceptedFiles[0]);
-    }, []);
-
-    const onDropSlidepack = useCallback((acceptedFiles: File[]) => {
-        setSlidepackFile(acceptedFiles[0]);
-    }, []);
-
-    const { getRootProps: getAudioRootProps, getInputProps: getAudioInputProps, isDragActive: isAudioDragActive } = useDropzone({
-        onDrop: onDropAudio,
-        accept: { 'audio/*': ['.mp3', '.wav', '.m4a'] },
-        maxFiles: mode === 'batch' ? undefined : 1,
-        multiple: mode === 'batch'
-    });
-
-    const { getRootProps: getMdRootProps, getInputProps: getMdInputProps, isDragActive: isMdDragActive } = useDropzone({
-        onDrop: onDropMd,
-        accept: { 'text/markdown': ['.md'], 'text/plain': ['.txt'] },
-        maxFiles: mode === 'batch' ? undefined : 1,
-        multiple: mode === 'batch'
-    });
-
-    const { getRootProps: getJsonRootProps, getInputProps: getJsonInputProps, isDragActive: isJsonDragActive } = useDropzone({
-        onDrop: onDropJson,
-        accept: { 'application/json': ['.json'] },
-        maxFiles: 1
-    });
-
-    const { getRootProps: getSlidepackRootProps, getInputProps: getSlidepackInputProps, isDragActive: isSlidepackDragActive } = useDropzone({
-        onDrop: onDropSlidepack,
-        accept: { 'application/zip': ['.slidepack', '.zip'] },
-        maxFiles: 1
-    });
-
-    // ... existing handlers ...
-    // Generate mode: requires audio + markdown
-    const handleGenerate = async () => {
-        if (!audioFile || !mdFile) return;
-
-        setIsProcessing(true);
-        setError(null);
-
-        const formData = new FormData();
-        formData.append('audio', audioFile);
-        formData.append('markdown', mdFile);
-
-        try {
-            const response = await fetch('http://localhost:8000/generate', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error('Generation failed');
-            }
-
-            const data = await response.json();
-            onUploadComplete(data, audioFile);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-            setIsProcessing(false);
+        setPairs(pairs.filter(p => p.id !== id));
+        // Return files to orphans ONLY if not done
+        if (pair.status !== 'done') {
+            setOrphans(prev => [
+                ...prev,
+                { id: generateId(), file: pair.audio, type: 'audio' },
+                { id: generateId(), file: pair.md, type: 'text' }
+            ]);
         }
     };
 
-    // Import mode: requires json + audio (for sync)
-    const handleImport = async () => {
-        if (!jsonFile || !audioFile) return;
-
-        setIsProcessing(true);
-        setError(null);
-
-        const formData = new FormData();
-        formData.append('slides_json', jsonFile);
-        formData.append('audio', audioFile);
-
-        try {
-            const response = await fetch('http://localhost:8000/sync', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error('Import/Sync failed');
-            }
-
-            const data = await response.json();
-            onUploadComplete(data, audioFile);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-            setIsProcessing(false);
-        }
+    const removeOrphan = (id: string) => {
+        if (isDispatching) return;
+        setOrphans(orphans.filter(o => o.id !== id));
     };
 
-    // Slidepack mode: import .slidepack bundle
-    const handleSlidepackImport = async () => {
-        if (!slidepackFile) return;
-
-        setIsProcessing(true);
-        setError(null);
-
-        const formData = new FormData();
-        formData.append('slidepack', slidepackFile);
-
-        try {
-            const response = await fetch('http://localhost:8000/import-slidepack', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error('Slidepack import failed');
-            }
-
-            const result = await response.json();
-
-            // Fetch the audio from the server and create a File object
-            const audioResponse = await fetch(`http://localhost:8000${result.audio_url}`);
-            const audioBlob = await audioResponse.blob();
-            const audioFileName = result.audio_url.split('/').pop() || 'audio.mp3';
-            const audioFile = new File([audioBlob], audioFileName, { type: audioBlob.type });
-
-            onUploadComplete(result.presentation, audioFile);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-            setIsProcessing(false);
-        }
+    const removeSlidepack = (id: string) => {
+        if (isDispatching) return;
+        setSlidepacks(slidepacks.filter(s => s.id !== id));
     };
 
-    // Batch Upload Handler
-    const handleBatchUpload = async () => {
-        if (pairs.length === 0) return;
+    const totalItems = pairs.length + slidepacks.length;
+    const canProcess = totalItems > 0 && !isDispatching;
 
-        setIsProcessing(true);
-        setError(null);
-        setUploadMessage("Uploading and queueing batch job...");
-
-        const formData = new FormData();
-
-        // Process pairs to ensure matching filenames if they differ
-        pairs.forEach(pair => {
-            const audioName = pair.audio.name;
-            const mdName = pair.md.name;
-            const audioBase = audioName.replace(/\.[^/.]+$/, "");
-            const mdBase = mdName.replace(/\.[^/.]+$/, "");
-
-            if (audioBase === mdBase) {
-                // Names match, send as is
-                formData.append('audio_files', pair.audio);
-                formData.append('md_files', pair.md);
-            } else {
-                // Names differ, rename both to a common identifier
-                const commonName = `batch_${pair.id}`;
-                const audioExt = audioName.split('.').pop();
-                const mdExt = mdName.split('.').pop();
-
-                const newAudio = new File([pair.audio], `${commonName}.${audioExt}`, { type: pair.audio.type });
-                const newMd = new File([pair.md], `${commonName}.${mdExt}`, { type: pair.md.type });
-
-                formData.append('audio_files', newAudio);
-                formData.append('md_files', newMd);
-            }
-        });
-
-        try {
-            const response = await fetch('http://localhost:8000/upload-batch/', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.detail || 'Batch upload failed');
-            }
-
-            const result = await response.json();
-            setUploadMessage(`Success! Course ID: ${result.course_id}. Processing started for ${result.pairs_count} pairs. Check Library.`);
-
-            // Clear files after success
-            setPairs([]);
-            setUnpairedAudio([]);
-            setUnpairedMd([]);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-            setUploadMessage(null);
-        } finally {
-            setIsProcessing(false);
-        }
+    // UI Helpers
+    const getStatusIcon = (status: ProcessingStatus) => {
+        if (status === 'uploading') return <Loader2 className="w-5 h-5 animate-spin text-blue-400" />;
+        if (status === 'done') return <CheckCircle className="w-5 h-5 text-green-400" />;
+        if (status === 'error') return <AlertCircle className="w-5 h-5 text-red-400" />;
+        return null;
     };
 
-
-    const canGenerate = mode === 'generate' && audioFile && mdFile;
-    const canImport = mode === 'import' && audioFile && jsonFile;
-    const canSlidepack = mode === 'slidepack' && slidepackFile;
-    const canBatch = mode === 'batch' && pairs.length > 0;
-
+    const getStatusClass = (status: ProcessingStatus) => {
+        if (status === 'uploading') return "border-blue-500/50 bg-blue-500/5";
+        if (status === 'done') return "border-green-500/50 bg-green-500/5 opacity-50";
+        if (status === 'error') return "border-red-500/50 bg-red-500/5";
+        return "border-green-500/30 bg-neutral-900/50";
+    };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 p-8 text-white font-sans w-full">
-            <div className="w-full max-w-6xl text-center space-y-8">
-                <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent pb-2">
-                    AudioSlide AI
+        <div className="flex flex-col items-center justify-start min-h-full p-8 text-white font-sans w-full max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="text-center space-y-4 mb-8">
+                <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                    Unified Smart Interface
                 </h1>
-                <p className="text-neutral-400 text-lg">Turn your lectures into synchronized slides instantly.</p>
+                <p className="text-neutral-400 text-lg">
+                    Drop everything here. We'll sort it out.
+                </p>
+            </div>
 
-                {/* Mode Selector */}
-                <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
-                    <button
-                        onClick={() => { setMode('generate'); setError(null); setUploadMessage(null); }}
-                        className={cn(
-                            "px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2",
-                            mode === 'generate'
-                                ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
-                                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                        )}
-                    >
-                        <Play className="w-4 h-4" />
-                        Genera
-                    </button>
-                    <button
-                        onClick={() => { setMode('batch'); setError(null); setUploadMessage(null); }}
-                        className={cn(
-                            "px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2",
-                            mode === 'batch'
-                                ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg"
-                                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                        )}
-                    >
-                        <Package className="w-4 h-4" />
-                        Batch Upload
-                    </button>
-                    <button
-                        onClick={() => { setMode('import'); setError(null); setUploadMessage(null); }}
-                        className={cn(
-                            "px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2",
-                            mode === 'import'
-                                ? "bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-lg"
-                                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                        )}
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                        Sync JSON
-                    </button>
-                    <button
-                        onClick={() => { setMode('slidepack'); setError(null); setUploadMessage(null); }}
-                        className={cn(
-                            "px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2",
-                            mode === 'slidepack'
-                                ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg"
-                                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                        )}
-                    >
-                        <Package className="w-4 h-4" />
-                        Apri Slidepack
-                    </button>
+            {/* Smart Dropzone */}
+            <div
+                {...getRootProps()}
+                className={cn(
+                    "w-full h-48 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center transition-all cursor-pointer mb-12 relative overflow-hidden",
+                    isDragActive
+                        ? "border-blue-500 bg-blue-500/10 scale-105"
+                        : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-700 hover:bg-neutral-900/50",
+                    isDispatching && "opacity-50 pointer-events-none"
+                )}
+            >
+                <input {...getInputProps()} />
+                <div className="flex flex-col items-center gap-4 text-neutral-500">
+                    <div className="p-4 bg-neutral-800 rounded-full">
+                        <Upload className="w-8 h-8 opacity-50" />
+                    </div>
+                    <p className="text-lg font-medium">
+                        Trascina qui le tue lezioni (Audio, Testi o Slidepack)
+                    </p>
+                    <p className="text-sm opacity-60">
+                        Supporta .mp3, .wav, .m4a, .md, .txt, .zip, .slidepack
+                    </p>
                 </div>
+            </div>
 
-                <div className={cn(
-                    "grid gap-6 mt-8",
-                    mode === 'batch' ? "grid-cols-1 lg:grid-cols-2" :
-                        mode === 'slidepack' ? "grid-cols-1 max-w-md mx-auto" : "grid-cols-1 md:grid-cols-2"
-                )}>
-                    {/* Audio Dropzone */}
-                    {mode !== 'slidepack' && (
-                        <div
-                            {...getAudioRootProps()}
-                            className={cn(
-                                "border-2 border-dashed rounded-3xl h-56 flex flex-col items-center justify-center transition-all cursor-pointer bg-neutral-900/50 backdrop-blur-sm",
-                                isAudioDragActive ? "border-blue-500 bg-blue-500/10" : "border-neutral-800 hover:border-neutral-700",
-                                (mode === 'generate' && audioFile) || (mode === 'batch' && unpairedAudio.length > 0) || (mode === 'import' && audioFile) ? "border-blue-500/50" : ""
-                            )}
-                        >
-                            <input {...getAudioInputProps()} />
-                            {(mode === 'batch' ? unpairedAudio.length > 0 : audioFile) ? (
-                                <div className="space-y-3 text-center">
-                                    <div className="p-3 bg-blue-500/20 rounded-full inline-block">
-                                        <FileAudio className="w-8 h-8 text-blue-400" />
-                                    </div>
-                                    {mode === 'batch' ? (
-                                        <p className="font-medium text-blue-100 text-sm">{unpairedAudio.length} file audio non accoppiati</p>
-                                    ) : (
-                                        <p className="font-medium text-blue-100 text-sm">{audioFile?.name}</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-3 text-neutral-500 text-center">
-                                    <Upload className="w-8 h-8 mx-auto opacity-50" />
-                                    <p className="text-sm">
-                                        {mode === 'batch' ? 'Trascina file audio (.mp3)' : 'Audio File (.mp3, .wav)'}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+            {/* Staging Area - Cards */}
+            <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-24">
 
-                    {/* Markdown Dropzone - Generate & Batch */}
-                    {(mode === 'generate' || mode === 'batch') && (
-                        <div
-                            {...getMdRootProps()}
-                            className={cn(
-                                "border-2 border-dashed rounded-3xl h-56 flex flex-col items-center justify-center transition-all cursor-pointer bg-neutral-900/50 backdrop-blur-sm",
-                                isMdDragActive ? "border-purple-500 bg-purple-500/10" : "border-neutral-800 hover:border-neutral-700",
-                                (mode === 'generate' && mdFile) || (mode === 'batch' && unpairedMd.length > 0) ? "border-purple-500/50" : ""
-                            )}
-                        >
-                            <input {...getMdInputProps()} />
-                            {(mode === 'batch' ? unpairedMd.length > 0 : mdFile) ? (
-                                <div className="space-y-3 text-center">
-                                    <div className="p-3 bg-purple-500/20 rounded-full inline-block">
-                                        <FileText className="w-8 h-8 text-purple-400" />
-                                    </div>
-                                    {mode === 'batch' ? (
-                                        <p className="font-medium text-purple-100 text-sm">{unpairedMd.length} file MD non accoppiati</p>
-                                    ) : (
-                                        <p className="font-medium text-purple-100 text-sm">{mdFile?.name}</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-3 text-neutral-500 text-center">
-                                    <Upload className="w-8 h-8 mx-auto opacity-50" />
-                                    <p className="text-sm">
-                                        {mode === 'batch' ? 'Trascina file MD (.md)' : 'Markdown File (.md)'}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                {/* 1. PAIRS */}
+                {pairs.map(pair => (
+                    <div
+                        key={pair.id}
+                        className={cn(
+                            "relative group p-4 rounded-2xl flex items-center justify-between border transition-all",
+                            getStatusClass(pair.status)
+                        )}
+                    >
+                        {/* Overlay status */}
+                        {pair.status === 'done' && <div className="absolute inset-0 bg-green-500/10 z-0" />}
 
-                    {/* JSON and Slidepack Dropzones (Unchanged) */}
-                    {mode === 'import' && (
-                        <div
-                            {...getJsonRootProps()}
-                            className={cn(
-                                "border-2 border-dashed rounded-3xl h-56 flex flex-col items-center justify-center transition-all cursor-pointer bg-neutral-900/50 backdrop-blur-sm",
-                                isJsonDragActive ? "border-green-500 bg-green-500/10" : "border-neutral-800 hover:border-neutral-700",
-                                jsonFile ? "border-green-500/50" : ""
-                            )}
-                        >
-                            <input {...getJsonInputProps()} />
-                            {jsonFile ? (
-                                <div className="space-y-3 text-center">
-                                    <div className="p-3 bg-green-500/20 rounded-full inline-block">
-                                        <FileJson className="w-8 h-8 text-green-400" />
-                                    </div>
-                                    <p className="font-medium text-green-100 text-sm">{jsonFile.name}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3 text-neutral-500 text-center">
-                                    <Upload className="w-8 h-8 mx-auto opacity-50" />
-                                    <p className="text-sm">Slide JSON File (.json)</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {mode === 'slidepack' && (
-                        <div
-                            {...getSlidepackRootProps()}
-                            className={cn(
-                                "border-2 border-dashed rounded-3xl h-56 flex flex-col items-center justify-center transition-all cursor-pointer bg-neutral-900/50 backdrop-blur-sm",
-                                isSlidepackDragActive ? "border-orange-500 bg-orange-500/10" : "border-neutral-800 hover:border-neutral-700",
-                                slidepackFile ? "border-orange-500/50" : ""
-                            )}
-                        >
-                            <input {...getSlidepackInputProps()} />
-                            {slidepackFile ? (
-                                <div className="space-y-3 text-center">
-                                    <div className="p-3 bg-orange-500/20 rounded-full inline-block">
-                                        <Package className="w-8 h-8 text-orange-400" />
-                                    </div>
-                                    <p className="font-medium text-orange-100 text-sm">{slidepackFile.name}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3 text-neutral-500 text-center">
-                                    <Package className="w-8 h-8 mx-auto opacity-50" />
-                                    <p className="text-sm">Slidepack File (.slidepack)</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Batch Manual Pairing UI */}
-                {mode === 'batch' && (
-                    <div className="space-y-6">
-                        {/* Unpaired Files Lists */}
-                        {(unpairedAudio.length > 0 || unpairedMd.length > 0) && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-neutral-900/30 p-4 rounded-3xl border border-white/10">
-                                <div className="space-y-2">
-                                    <h3 className="text-sm font-semibold text-blue-400 mb-2">Audio Non Accoppiati</h3>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto pr-2">
-                                        {unpairedAudio.map((file, idx) => (
-                                            <div
-                                                key={idx}
-                                                onClick={() => setSelectedAudioIdx(selectedAudioIdx === idx ? null : idx)}
-                                                className={cn(
-                                                    "p-2 rounded-lg text-sm cursor-pointer transition-all truncate",
-                                                    selectedAudioIdx === idx
-                                                        ? "bg-blue-500/20 text-blue-200 border border-blue-500/30"
-                                                        : "bg-neutral-800/50 hover:bg-neutral-800 text-neutral-400"
-                                                )}
-                                            >
-                                                {file.name}
-                                            </div>
-                                        ))}
-                                        {unpairedAudio.length === 0 && <span className="text-neutral-600 text-xs italic">Nessun file</span>}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Markdown Non Accoppiati</h3>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto pr-2">
-                                        {unpairedMd.map((file, idx) => (
-                                            <div
-                                                key={idx}
-                                                onClick={() => setSelectedMdIdx(selectedMdIdx === idx ? null : idx)}
-                                                className={cn(
-                                                    "p-2 rounded-lg text-sm cursor-pointer transition-all truncate",
-                                                    selectedMdIdx === idx
-                                                        ? "bg-purple-500/20 text-purple-200 border border-purple-500/30"
-                                                        : "bg-neutral-800/50 hover:bg-neutral-800 text-neutral-400"
-                                                )}
-                                            >
-                                                {file.name}
-                                            </div>
-                                        ))}
-                                        {unpairedMd.length === 0 && <span className="text-neutral-600 text-xs italic">Nessun file</span>}
-                                    </div>
-                                </div>
+                        <div className="flex items-center gap-4 min-w-0 flex-1 z-10">
+                            {/* Audio Icon */}
+                            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">
+                                <FileAudio className="w-5 h-5" />
                             </div>
-                        )}
 
-                        {/* Pair Button */}
-                        <div className="flex justify-center">
+                            <div className="h-px bg-white/10 flex-1 min-w-[20px]" />
+                            <div className={cn("p-1 rounded-full", pair.status === 'error' ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400")}>
+                                {getStatusIcon(pair.status) || <LinkIcon className="w-3 h-3" />}
+                            </div>
+                            <div className="h-px bg-white/10 flex-1 min-w-[20px]" />
+
+                            <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400 shrink-0">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                        </div>
+
+                        {/* Info Tooltip */}
+                        <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:block bg-black/80 text-xs p-2 rounded-lg text-white text-center whitespace-pre-wrap z-20">
+                            {pair.audio.name} + {pair.md.name}
+                            {pair.error && <span className="text-red-400 block mt-1">{pair.error}</span>}
+                        </div>
+
+                        {/* Unlink Button (Only if idle/error) */}
+                        {['idle', 'error'].includes(pair.status) && (
                             <button
-                                onClick={handleManualPair}
-                                disabled={selectedAudioIdx === null || selectedMdIdx === null}
-                                className={cn(
-                                    "flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all",
-                                    (selectedAudioIdx !== null && selectedMdIdx !== null)
-                                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg hover:shadow-xl hover:scale-105"
-                                        : "bg-neutral-800 text-neutral-500 cursor-not-allowed"
-                                )}
+                                onClick={(e) => { e.stopPropagation(); removePair(pair.id); }}
+                                className="absolute -top-2 -right-2 p-1.5 bg-neutral-800 text-neutral-400 hover:text-red-400 rounded-full border border-white/10 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
                             >
-                                <Link className="w-4 h-4" />
-                                Accoppia Manualmente
+                                <Trash2 className="w-3 h-3" />
                             </button>
-                        </div>
-
-                        {/* Pairs List */}
-                        {pairs.length > 0 && (
-                            <div className="bg-neutral-900/50 p-6 rounded-3xl border border-white/5 space-y-4">
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                    <Package className="w-5 h-5 text-pink-500" />
-                                    Coppie Pronte ({pairs.length})
-                                </h3>
-                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                    {pairs.map((pair) => (
-                                        <div key={pair.id} className="flex items-center justify-between bg-neutral-800/50 p-3 rounded-xl border border-white/5 group hover:border-white/10 transition-all">
-                                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 text-blue-300 min-w-0 flex-1">
-                                                    <FileAudio className="w-4 h-4 shrink-0" />
-                                                    <span className="truncate text-sm" title={pair.audio.name}>{pair.audio.name}</span>
-                                                </div>
-                                                <div className="w-px h-8 bg-white/10 shrink-0" />
-                                                <div className="flex items-center gap-2 text-purple-300 min-w-0 flex-1">
-                                                    <FileText className="w-4 h-4 shrink-0" />
-                                                    <span className="truncate text-sm" title={pair.md.name}>{pair.md.name}</span>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => handleUnpair(pair.id)}
-                                                className="ml-4 p-2 text-neutral-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors"
-                                                title="Scollega"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
                         )}
                     </div>
-                )}
+                ))}
 
-                {error && (
-                    <div className="bg-red-500/10 text-red-500 p-4 rounded-xl border border-red-500/20">
-                        {error}
+                {/* 2. SLIDEPACKS */}
+                {slidepacks.map(item => (
+                    <div
+                        key={item.id}
+                        className={cn(
+                            "relative bg-neutral-900/50 border p-4 rounded-2xl flex items-center gap-4",
+                            item.status === 'error' ? "border-red-500/30 bg-red-500/5" :
+                                item.status === 'done' ? "border-green-500/30 opacity-50" :
+                                    item.status === 'uploading' ? "border-orange-500/50 bg-orange-500/5" : "border-orange-500/30"
+                        )}
+                    >
+                        <div className="p-2 bg-orange-500/20 rounded-lg text-orange-400">
+                            {getStatusIcon(item.status) || <Package className="w-6 h-6" />}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="font-medium text-white truncate text-sm">{item.file.name}</p>
+                            <p className="text-xs text-orange-400/80">
+                                {item.status === 'error' ? item.error :
+                                    item.status === 'uploading' ? 'Importing...' :
+                                        item.status === 'done' ? 'Imported' : 'Slidepack pronto'}
+                            </p>
+                        </div>
+                        {['idle', 'error'].includes(item.status) && (
+                            <button
+                                onClick={() => removeSlidepack(item.id)}
+                                className="absolute top-2 right-2 p-1 text-neutral-600 hover:text-red-400"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
-                )}
+                ))}
 
-                {uploadMessage && (
-                    <div className="bg-green-500/10 text-green-400 p-4 rounded-xl border border-green-500/20">
-                        {uploadMessage}
+                {/* 3. ORPHANS */}
+                {orphans.map(orphan => {
+                    const isTarget = draggedItem && draggedItem.type !== orphan.type && draggedItem.id !== orphan.id;
+                    const isSource = draggedItem && draggedItem.id === orphan.id;
+                    const canAcceptDrop = isTarget && draggedItem; // Valid drop target
+                    const isInvalidDrop = draggedItem && draggedItem.type === orphan.type && draggedItem.id !== orphan.id; // Audio on Audio
+
+                    return (
+                        <div
+                            key={orphan.id}
+                            draggable={!isDispatching}
+                            onDragStart={(e) => handleDragStart(e, orphan.id, orphan.type)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => handleDragOver(e, orphan.type)}
+                            onDrop={(e) => handleDropPair(e, orphan.id, orphan.type)}
+                            className={cn(
+                                "relative p-4 rounded-2xl border-2 border-dashed flex items-center gap-4 transition-all",
+                                isDispatching ? "opacity-50 cursor-not-allowed" : "cursor-move",
+                                orphan.type === 'audio'
+                                    ? "bg-blue-500/5 border-blue-500/30 hover:bg-blue-500/10"
+                                    : "bg-purple-500/5 border-purple-500/30 hover:bg-purple-500/10",
+                                isSource && "opacity-20",
+                                canAcceptDrop && "ring-2 ring-green-500 scale-105 border-green-500 bg-green-500/10",
+                                isInvalidDrop && isDragActive && "opacity-50" // Dim invalid targets slightly
+                            )}
+                        >
+                            {orphan.type === 'audio' ? (
+                                <>
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                                            <FileAudio className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-sm truncate text-blue-100/80">{orphan.file.name}</span>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-lg border border-white/10 flex items-center justify-center text-xs text-neutral-600">
+                                        {canAcceptDrop ? <CheckCircle className="w-6 h-6 text-green-500 animate-pulse" /> : <FileText className="w-4 h-4 opacity-50" />}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-12 h-12 rounded-lg border border-white/10 flex items-center justify-center text-xs text-neutral-600">
+                                        {canAcceptDrop ? <CheckCircle className="w-6 h-6 text-green-500 animate-pulse" /> : <FileAudio className="w-4 h-4 opacity-50" />}
+                                    </div>
+                                    <div className="flex items-center gap-3 min-w-0 flex-1 justify-end">
+                                        <span className="text-sm truncate text-purple-100/80">{orphan.file.name}</span>
+                                        <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                                            <FileText className="w-5 h-5" />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {!isDispatching && (
+                                <button
+                                    onClick={() => removeOrphan(orphan.id)}
+                                    className="absolute -top-2 -right-2 p-1 bg-neutral-800 rounded-full border border-white/10 hidden hover:block text-neutral-400 hover:text-red-400"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+
+            </div>
+
+            {/* Generate Action Bar */}
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50">
+                <div className="bg-neutral-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-3xl shadow-2xl flex items-center justify-between gap-6">
+
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-white flex items-center gap-2">
+                            {orphans.length > 0 ? (
+                                <>
+                                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                                    {orphans.length} file incompleti saranno ignorati
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                    Tutto pronto
+                                </>
+                            )}
+                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                            {isDispatching && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+                            <span className="text-xs text-neutral-400">
+                                {isDispatching
+                                    ? `Elaborazione in corso...`
+                                    : `${pairs.length} Coppie • ${slidepacks.length} Slidepack`
+                                }
+                            </span>
+                        </div>
                     </div>
-                )}
 
-                <button
-                    onClick={() => {
-                        if (mode === 'generate') handleGenerate();
-                        else if (mode === 'import') handleImport();
-                        else if (mode === 'slidepack') handleSlidepackImport();
-                        else if (mode === 'batch') handleBatchUpload();
-                    }}
-                    disabled={(!canGenerate && !canImport && !canSlidepack && !canBatch) || isProcessing}
-                    className={cn(
-                        "group relative px-8 py-4 font-bold rounded-full text-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100",
-                        mode === 'generate' ? "bg-white text-black" :
-                            mode === 'batch' ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white" :
-                                mode === 'import' ? "bg-gradient-to-r from-green-500 to-teal-500 text-white" :
-                                    "bg-gradient-to-r from-orange-500 to-amber-500 text-white", // slidepack
-                        (!canGenerate && !canImport && !canSlidepack && !canBatch) && "opacity-50 cursor-not-allowed"
-                    )}
-                >
-                    {isProcessing ? (
-                        <span className="flex items-center gap-2">
-                            <Loader2 className="animate-spin w-5 h-5" />
-                            {mode === 'batch' ? 'Uploading...' : 'Processing...'}
-                        </span>
-                    ) : (
-                        <span className="flex items-center gap-2">
-                            {mode === 'generate' ? 'Start Generation' :
-                                mode === 'batch' ? `Avvia Batch Upload (${pairs.length})` :
-                                    mode === 'import' ? 'Import & Sync' :
-                                        'Apri Slidepack'}
-                            <ArrowRight className="w-4 h-4" />
-                        </span>
-                    )}
-                </button>
-
-                {mode === 'import' && (
-                    <p className="text-neutral-500 text-sm">
-                        💡 Importa un JSON esportato precedentemente e sincronizzalo con un nuovo audio
-                    </p>
-                )}
-
-                {mode === 'batch' && (
-                    <p className="text-neutral-500 text-sm">
-                        💡 Carica più file. Quelli con lo stesso nome vengono accoppiati automaticamente. Usa i controlli sopra per accoppiare file con nomi diversi.
-                    </p>
-                )}
+                    <button
+                        onClick={handleUnifiedSubmit}
+                        disabled={!canProcess}
+                        className={cn(
+                            "px-8 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg",
+                            canProcess
+                                ? "bg-white text-black hover:scale-105 active:scale-95"
+                                : "bg-neutral-800 text-neutral-500 cursor-not-allowed"
+                        )}
+                    >
+                        {isDispatching ? 'Elaborazione...' : 'Elabora Tutto'}
+                        {!isDispatching && <ArrowRight className="w-4 h-4" />}
+                    </button>
+                </div>
             </div>
         </div>
     );

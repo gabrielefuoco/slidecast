@@ -5,7 +5,7 @@ echo        Starting AudioSlide AI Ecosystem
 echo ===================================================
 
 echo [1/3] Starting Backend Server (FastAPI)...
-start "AudioSlide Backend" cmd /k "cd backend && python -m uvicorn main:app --reload --port 8000"
+start "AudioSlide Backend" cmd /k "cd backend && venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000"
 
 echo [2/3] Starting Frontend Server (Vite)...
 start "AudioSlide Frontend" cmd /k "cd frontend && npm run dev -- --port 5173"

@@ -419,8 +419,10 @@ def export_course(course_id: int):
 
 
 # New: Mount storage for serving persisted files
-os.makedirs("storage", exist_ok=True)
-app.mount("/storage", StaticFiles(directory="storage"), name="storage")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STORAGE_DIR = os.path.join(BASE_DIR, "storage")
+os.makedirs(STORAGE_DIR, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=STORAGE_DIR), name="storage")
 
 @app.get("/slidepack/{pack_id}")
 def get_slidepack(pack_id: int):

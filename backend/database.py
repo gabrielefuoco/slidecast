@@ -25,9 +25,14 @@ class SlidePack(Base):
     course_id = Column(Integer, ForeignKey('courses.id'), nullable=True)
     course = relationship("Course", back_populates="slidepacks")
 
+import os
+
 # Setup DB
 # We'll use a local sqlite file in the backend directory
-engine = create_engine('sqlite:///slidecast.db', connect_args={"check_same_thread": False})
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "slidecast.db")
+
+engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():

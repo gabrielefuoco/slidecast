@@ -4,7 +4,7 @@ import { SlideViewer } from './components/SlideViewer';
 import { Player } from './components/Player';
 import { Library } from './components/Library';
 import { cn } from './lib/utils';
-import { LayoutList, Download, Package, Home, PlusCircle } from 'lucide-react';
+import { LayoutList, Package, Home, PlusCircle } from 'lucide-react';
 import JSZip from 'jszip';
 
 interface Slide {
@@ -60,17 +60,7 @@ function App() {
         }
     }, [activeSlideId, view]);
 
-    // Export JSON only
-    const handleExportJSON = () => {
-        if (!data) return;
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${data.metadata?.title || 'presentazione'}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
+
 
     // Export complete slidepack (JSON + Audio)
     const handleExportSlidepack = async () => {
@@ -108,16 +98,6 @@ function App() {
 
                 <nav className="flex items-center gap-1 bg-neutral-800/50 p-1 rounded-xl">
                     <button
-                        onClick={() => setView('upload')}
-                        className={cn(
-                            "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-                            view === 'upload' ? "bg-neutral-700 text-white shadow-sm" : "text-neutral-400 hover:text-white hover:bg-neutral-700/50"
-                        )}
-                    >
-                        <PlusCircle className="w-4 h-4" />
-                        Nuovo
-                    </button>
-                    <button
                         onClick={() => setView('library')}
                         className={cn(
                             "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
@@ -127,18 +107,6 @@ function App() {
                         <LayoutList className="w-4 h-4" />
                         Libreria
                     </button>
-                    {data && (
-                        <button
-                            onClick={() => setView('player')}
-                            className={cn(
-                                "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-                                view === 'player' ? "bg-neutral-700 text-white shadow-sm" : "text-neutral-400 hover:text-white hover:bg-neutral-700/50"
-                            )}
-                        >
-                            <Home className="w-4 h-4" />
-                            Player
-                        </button>
-                    )}
                 </nav>
             </div>
 
@@ -146,14 +114,7 @@ function App() {
                 <div className="flex items-center gap-4">
                     <div className="text-sm font-medium text-neutral-400 hidden md:block truncate max-w-xs">{data.metadata?.title}</div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleExportJSON}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-all"
-                            title="Esporta solo JSON"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                            JSON
-                        </button>
+
                         <button
                             onClick={handleExportSlidepack}
                             className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-lg text-xs font-medium transition-all"
