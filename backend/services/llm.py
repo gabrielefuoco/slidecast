@@ -1,9 +1,14 @@
 import os
 import json
 import asyncio
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from mistralai import Mistral
 from models import PresentationManifest
 from services.chunking import ChunkingService
+
+# Configuration for robust calls
+MAX_CONCURRENT_REQUESTS = 5
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
 class LLMService:
     def __init__(self):
@@ -112,34 +117,41 @@ class LLMService:
         
         return base_prompt
 
+    @retry(
+        stop=stop_after_attempt(5), 
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        retry=retry_if_exception_type(Exception)
+    )
     async def _process_chunk_async(self, chunk_segments: list, markdown_text: str, chunk_index: int) -> list:
-        """Elabora un singolo chunk in modo asincrono."""
-        segments_str = "\n".join([f"[{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}" for s in chunk_segments])
-        
-        user_message = f"""
-        === MATERIALE MARKDOWN (fonte principale) ===
-        {markdown_text}
-        
-        === TRASCRIZIONE AUDIO CON TIMESTAMP (Chunk {chunk_index + 1}) ===
-        {segments_str}
-        
-        Genera le slide per questo segmento in italiano seguendo TUTTE le regole indicate.
-        """
-        
-        # Usa il client async di Mistral
-        response = await self.client.chat.complete_async(
-            model="mistral-large-latest",
-            messages=[
-                {"role": "system", "content": self._get_system_prompt(is_partial=True)},
-                {"role": "user", "content": user_message}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        content = response.choices[0].message.content
-        data = json.loads(content)
-        
-        return data.get("slides", [])
+        """Elabora un singolo chunk in modo asincrono con retry e semaphore."""
+        async with semaphore:
+            print(f"Generating slides for chunk {chunk_index + 1}...")
+            segments_str = "\n".join([f"[{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}" for s in chunk_segments])
+            
+            user_message = f"""
+            === MATERIALE MARKDOWN (fonte principale) ===
+            {markdown_text}
+            
+            === TRASCRIZIONE AUDIO CON TIMESTAMP (Chunk {chunk_index + 1}) ===
+            {segments_str}
+            
+            Genera le slide per questo segmento in italiano seguendo TUTTE le regole indicate.
+            """
+            
+            # Usa il client async di Mistral
+            response = await self.client.chat.complete_async(
+                model="mistral-large-latest",
+                messages=[
+                    {"role": "system", "content": self._get_system_prompt(is_partial=True)},
+                    {"role": "user", "content": user_message}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            content = response.choices[0].message.content
+            data = json.loads(content)
+            
+            return data.get("slides", [])
 
     async def _generate_title_async(self, markdown_text: str, total_duration: float) -> dict:
         """Genera i metadata della presentazione."""

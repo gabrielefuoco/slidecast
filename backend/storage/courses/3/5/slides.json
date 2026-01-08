@@ -1,0 +1,444 @@
+{
+  "metadata": {
+    "title": "Ottimizzazione in Machine Learning: L'Algoritmo della Discesa del Gradiente",
+    "duration": 788.4
+  },
+  "slides": [
+    {
+      "id": 1,
+      "timestamp_start": 0.0,
+      "timestamp_end": 30.24,
+      "title": "Introduzione all'ottimizzazione nel Machine Learning",
+      "content": [
+        "Il machine learning è un problema di **ottimizzazione matematica**",
+        "L'obiettivo è trovare il **minimo di una funzione di costo** (errore del modello)",
+        "La funzione di costo rappresenta una \"collina\" da scendere per ridurre l'errore",
+        "Si utilizza il **gradiente** per determinare la direzione di discesa più ripida"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il concetto di ottimizzazione è centrale: si cerca il punto più basso di una funzione convessa, analogamente a scendere una collina nella nebbia."
+    },
+    {
+      "id": 2,
+      "timestamp_start": 30.24,
+      "timestamp_end": 75.68,
+      "title": "L'algoritmo della Discesa del Gradiente",
+      "content": [
+        "Processo **iterativo** basato sulla pendenza locale (gradiente)",
+        "Si parte da un punto casuale e si procede per piccoli passi",
+        "Ad ogni passo:",
+        "1. Si calcola il **gradiente** (direzione di massima salita)",
+        "2. Si muove nella **direzione opposta** (discesa) con ampiezza controllata dal *learning rate* ($η$)"
+      ],
+      "math_formulas": [
+        "$w(t+1) = w(t) - η * ∇f(w(t))$"
+      ],
+      "deep_dive": "Il gradiente fornisce la direzione di massima pendenza, ma per minimizzare la funzione ci si muove nella direzione opposta."
+    },
+    {
+      "id": 3,
+      "timestamp_start": 75.68,
+      "timestamp_end": 99.0,
+      "title": "Limiti e Varianti della Discesa del Gradiente",
+      "content": [
+        "La **discesa del gradiente standard** è inefficiente con **big data** (calcola il gradiente su tutto il dataset)",
+        "La **discesa stocastica del gradiente (SGD)** risolve questo problema:",
+        "- Usa un **sottoinsieme casuale** di dati per calcolare il gradiente",
+        "- Più veloce ma con traiettoria \"a zig-zag\" verso il minimo"
+      ],
+      "math_formulas": [
+        "$E[\\vec{V}_{t}] = ∇_{\\vec{w}}f(\\vec{w}^{(t)})$"
+      ],
+      "deep_dive": "La SGD introduce casualità nel processo, ma in media converge verso il minimo come la discesa standard."
+    },
+    {
+      "id": 4,
+      "timestamp_start": 99.0,
+      "timestamp_end": 120.8,
+      "title": "Obiettivi Finali: Generalizzazione e Regularizzazione",
+      "content": [
+        "Oltre a minimizzare l'errore, il modello deve **generalizzare** bene su dati non visti",
+        "La **regularizzazione** previene l'*overfitting* (modello troppo complesso)",
+        "Processo iterativo della discesa del gradiente:",
+        "- Milioni di passi per convergere alla soluzione ottimale"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La regularizzazione aggiunge un termine di penalità alla funzione di costo per controllare la complessità del modello."
+    },
+    {
+      "id": 5,
+      "timestamp_start": 120.8,
+      "timestamp_end": 154.0,
+      "title": "Introduzione alla Discesa del Gradiente",
+      "content": [
+        "Si parte da una soluzione casuale per i parametri del modello (pesi).",
+        "Ad ogni iterazione si calcola il **gradiente**, che indica la direzione di massima salita.",
+        "Si aggiorna la soluzione muovendosi nella **direzione opposta** al gradiente per minimizzare la funzione.",
+        "L'aggiornamento è dato da: $w(t+1) = w(t) - η * ∇f(w(t))$"
+      ],
+      "math_formulas": [
+        "$w(t+1) = w(t) - η * ∇f(w(t))$"
+      ],
+      "deep_dive": "Il gradiente rappresenta la pendenza della funzione, mentre il learning rate ($η$) controlla l'ampiezza del passo."
+    },
+    {
+      "id": 6,
+      "timestamp_start": 154.0,
+      "timestamp_end": 196.4,
+      "title": "Il Ruolo del Learning Rate",
+      "content": [
+        "Il **learning rate** ($η$) determina la lunghezza del passo durante l'aggiornamento dei pesi.",
+        "Un valore troppo **alto** può causare oscillazioni e impedire la convergenza al minimo.",
+        "Un valore troppo **basso** rallenta l'addestramento, richiedendo molte iterazioni.",
+        "Trovare il giusto $η$ è cruciale per l'efficienza dell'algoritmo."
+      ],
+      "math_formulas": [
+        "$η$"
+      ],
+      "deep_dive": "Un learning rate mal calibrato può portare a risultati subottimali o a tempi di addestramento eccessivi."
+    },
+    {
+      "id": 7,
+      "timestamp_start": 196.4,
+      "timestamp_end": 237.4,
+      "title": "Limiti della Discesa del Gradiente Classica",
+      "content": [
+        "Per calcolare il gradiente **perfetto**, l'algoritmo deve valutare l'errore su **tutto il dataset**.",
+        "Con dataset di grandi dimensioni, questo processo diventa **inefficiente**.",
+        "Ad esempio: elaborare milioni di dati per un singolo aggiornamento è computazionalmente costoso.",
+        "Questo rappresenta il **tallone d'Achille** della discesa del gradiente standard."
+      ],
+      "math_formulas": [],
+      "deep_dive": "La necessità di calcolare il gradiente su tutto il dataset rende l'algoritmo lento per applicazioni reali."
+    },
+    {
+      "id": 8,
+      "timestamp_start": 242.4,
+      "timestamp_end": 250.4,
+      "title": "Limiti della Discesa del Gradiente Standard",
+      "content": [
+        "La discesa del gradiente standard è impraticabile su grandi dataset",
+        "Calcola il gradiente su **tutto il dataset** ad ogni iterazione",
+        "Risulta computazionalmente troppo onerosa per applicazioni reali"
+      ],
+      "math_formulas": [],
+      "deep_dive": ""
+    },
+    {
+      "id": 9,
+      "timestamp_start": 250.4,
+      "timestamp_end": 267.4,
+      "title": "Introduzione alla Discesa Stocastica del Gradiente (SGD)",
+      "content": [
+        "Variante pragmatica della discesa del gradiente: **SGD (Stochastic Gradient Descent)**",
+        "Il termine *stocastico* significa **casuale**",
+        "Ad ogni iterazione, **seleziona un solo campione casuale** dal dataset",
+        "Calcola il gradiente **basandosi esclusivamente su quel campione**"
+      ],
+      "math_formulas": [],
+      "deep_dive": "L'approccio sembra controintuitivo, ma risolve il problema della complessità computazionale."
+    },
+    {
+      "id": 10,
+      "timestamp_start": 267.4,
+      "timestamp_end": 295.4,
+      "title": "Funzionamento e Comportamento della SGD",
+      "content": [
+        "Un singolo campione può influenzare drasticamente la direzione del gradiente",
+        "Un **outlier** può deviare temporaneamente il percorso di ottimizzazione",
+        "Il percorso della SGD è **caotico e rumoroso**, simile a una \"camminata da ubriaco\"",
+        "A differenza della discesa standard, che segue una traiettoria **lineare e decisa**"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La casualità introduce rumore, ma in media la direzione complessiva rimane corretta."
+    },
+    {
+      "id": 11,
+      "timestamp_start": 295.4,
+      "timestamp_end": 320.4,
+      "title": "Perché la SGD Funziona?",
+      "content": [
+        "Ogni singolo passo può essere **impreciso o addirittura errato**",
+        "Tuttavia, **in media**, la direzione complessiva converge verso il minimo",
+        "Il **valore atteso** dei mini-gradienti coincide con il gradiente vero:",
+        "$$E[\\vec{V}_t] = \\nabla_{\\vec{w}} f(\\vec{w}^{(t)})$$"
+      ],
+      "math_formulas": [
+        "$$E[\\vec{V}_t] = \\nabla_{\\vec{w}} f(\\vec{w}^{(t)})$$"
+      ],
+      "deep_dive": "La SGD sfrutta la legge dei grandi numeri: migliaia di passi rumorosi compensano gli errori individuali."
+    },
+    {
+      "id": 12,
+      "timestamp_start": 320.4,
+      "timestamp_end": 341.4,
+      "title": "Vantaggi della SGD: Velocità vs Perfezione",
+      "content": [
+        "Non punta alla **perfezione del singolo passo**, ma alla **tendenza generale**",
+        "Privilegia il \"**sufficientemente buono** fatto migliaia di volte al secondo\"",
+        "Consente di addestrare modelli su **dataset enormi** con risorse limitate",
+        "Rende possibile l'apprendimento profondo (deep learning) moderno"
+      ],
+      "math_formulas": [],
+      "deep_dive": ""
+    },
+    {
+      "id": 13,
+      "timestamp_start": 341.4,
+      "timestamp_end": 363.4,
+      "title": "Mini-Batch SGD: Il Miglior Compromesso",
+      "content": [
+        "La soluzione ottimale sta nel **mezzo**: né un campione né tutto il dataset",
+        "L'approccio più comune è il **mini-batch SGD**",
+        "Si seleziona un **piccolo gruppo di campioni** (batch) ad ogni iterazione",
+        "Batch tipici: **32, 64 o 128 campioni** su cui calcolare il gradiente medio"
+      ],
+      "math_formulas": [
+        "$$\\vec{V}_t = \\frac{1}{b} \\sum_{i=1}^{b} \\nabla_{\\vec{w}} l(\\vec{w}^{(t)}, (\\vec{x}_i, y_i))$$"
+      ],
+      "deep_dive": "Il mini-batch riduce il rumore della SGD pura, mantenendo l'efficienza computazionale."
+    },
+    {
+      "id": 14,
+      "timestamp_start": 363.4,
+      "timestamp_end": 375.4,
+      "title": "Mini-Batch SGD: Stabilità ed Efficienza",
+      "content": [
+        "La **mini-batch SGD** utilizza un sottoinsieme casuale di esempi per calcolare il gradiente",
+        "Riduce il rumore rispetto alla SGD pura, migliorando la stabilità",
+        "Mantiene gran parte dell'efficienza computazionale della SGD",
+        "Compromesso tra velocità (SGD) e stabilità (GD batch)"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il mini-batch (tipicamente 32-256 esempi) bilancia il costo computazionale e la qualità del gradiente, rendendo l'algoritmo più robusto alle fluttuazioni casuali."
+    },
+    {
+      "id": 15,
+      "timestamp_start": 375.4,
+      "timestamp_end": 391.4,
+      "title": "Problemi della Discesa Stocastica",
+      "content": [
+        "La traiettoria della SGD è erratica e a zig-zag verso il minimo",
+        "Difficoltà nel garantire la convergenza al punto ottimale",
+        "Necessità di meccanismi per \"domare\" l'algoritmo",
+        "Il **learning rate** gioca un ruolo cruciale nella stabilizzazione"
+      ],
+      "math_formulas": [],
+      "deep_dive": "L'erraticità della SGD è dovuta alla varianza del gradiente stimato su piccoli batch, che può portare a oscillazioni anche vicino al minimo."
+    },
+    {
+      "id": 16,
+      "timestamp_start": 391.4,
+      "timestamp_end": 418.4,
+      "title": "Learning Rate Variabile: Annealing",
+      "content": [
+        "All'inizio (lontani dal minimo): **passi lunghi** per convergenza rapida",
+        "Vicino al minimo: **passi corti** per aggiustamenti precisi",
+        "Tecnica dell'**annealing**: riduzione graduale del learning rate",
+        "Formula comune: $\\eta^{(t)} = \\frac{\\eta_0}{\\sqrt{t}}$"
+      ],
+      "math_formulas": [
+        "$$\\eta^{(t)} = \\frac{\\eta_0}{\\sqrt{t}}$$"
+      ],
+      "deep_dive": "L'annealing permette di bilanciare esplorazione (fase iniziale) ed exploitazione (fase finale), evitando oscillazioni e garantendo convergenza."
+    },
+    {
+      "id": 17,
+      "timestamp_start": 418.4,
+      "timestamp_end": 462.4,
+      "title": "Limiti della Loss 0-1 e Funzioni Non Convesse",
+      "content": [
+        "La **loss 0-1** è **non convessa** e **piatta** quasi ovunque",
+        "Problema: il gradiente è **zero** tranne nel punto di discontinuità",
+        "L'algoritmo si ferma senza indicazioni su dove muoversi",
+        "Soluzione: sostituire la loss originale con una **surrogata**"
+      ],
+      "math_formulas": [
+        "$$l_{0-1}(\\vec{w}, (\\vec{x}, y)) = \\begin{cases} 0 & \\text{se } y \\langle \\vec{w}, \\vec{x} \\rangle > 0 \\\\ 1 & \\text{altrimenti} \\end{cases}$$"
+      ],
+      "deep_dive": "La loss 0-1 è intrattabile per la discesa del gradiente perché non fornisce informazioni utili (gradiente nullo) nella maggior parte dello spazio dei parametri."
+    },
+    {
+      "id": 18,
+      "timestamp_start": 462.4,
+      "timestamp_end": 484.4,
+      "title": "Funzioni di Loss Surrogate: Proprietà Chiave",
+      "content": [
+        "Sostituiscono funzioni di loss **non convesse** o **discontinue**",
+        "Devono essere **upper bound** della loss originale (perbande)",
+        "Devono essere **convesse** per garantire convergenza",
+        "Esempio: **hinge loss** per la classificazione binaria"
+      ],
+      "math_formulas": [
+        "$$l_{\\text{hinge}}(\\vec{w}, (\\vec{x}, y)) = \\max\\{0, 1 - y \\langle \\vec{w}, \\vec{x} \\rangle\\}$$"
+      ],
+      "deep_dive": "Le loss surrogate permettono di trasformare problemi NP-hard (come la minimizzazione della loss 0-1) in problemi convessi trattabili con la discesa del gradiente."
+    },
+    {
+      "id": 19,
+      "timestamp_start": 484.4,
+      "timestamp_end": 497.4,
+      "title": "Funzioni di Loss Surrogate",
+      "content": [
+        "L'obiettivo è minimizzare una funzione convessa per semplificare l'ottimizzazione",
+        "Si sostituisce la funzione originale (difficile da minimizzare) con una sua approssimazione convessa",
+        "La funzione surrogata deve essere un *upper bound* della funzione originale",
+        "Esempio: la funzione originale può essere non convessa o discontinua (es. loss 0-1)"
+      ],
+      "math_formulas": [
+        "$$\\mathrm{ERM}_{H}(S) = \\arg \\min_{\\vec{\\omega} \\in H} L_s(\\vec{\\omega})$$"
+      ],
+      "deep_dive": "La funzione surrogata permette di utilizzare algoritmi di ottimizzazione come la discesa del gradiente, garantendo convergenza al minimo globale."
+    },
+    {
+      "id": 20,
+      "timestamp_start": 497.4,
+      "timestamp_end": 525.4,
+      "title": "Hinge Loss: Un Esempio di Loss Surrogata",
+      "content": [
+        "La *hinge loss* è una funzione surrogata per la loss 0-1 nei problemi di classificazione",
+        "Vale 0 per previsioni corrette con margine ≥ 1, altrimenti cresce linearmente",
+        "È convessa e differenziabile, quindi adatta alla discesa del gradiente",
+        "Funziona come una \"rampa\" che avvolge dall'alto il gradino della loss 0-1"
+      ],
+      "math_formulas": [
+        "$$l_{\\text{hinge}}(\\vec{w},(\\vec{x},y)) = \\max \\{ 0, 1 - y_i \\langle \\vec{w}, \\vec{x_i} \\rangle \\}$$"
+      ],
+      "deep_dive": "Minimizzando la hinge loss, si ottiene una soluzione vicina al minimo della loss originale, pur risolvendo un problema più semplice."
+    },
+    {
+      "id": 21,
+      "timestamp_start": 525.4,
+      "timestamp_end": 551.4,
+      "title": "Oltre il Training: Il Problema dell'Overfitting",
+      "content": [
+        "Minimizzare l'errore sui dati di training non è il vero obiettivo",
+        "Il modello deve generalizzare bene su dati mai visti (*test set*)",
+        "Un modello che impara a memoria i dati di training soffre di *overfitting*",
+        "L'overfitting porta a prestazioni scarse su nuovi dati"
+      ],
+      "math_formulas": [],
+      "deep_dive": "L'overfitting è paragonabile a uno studente che memorizza le risposte senza comprendere i concetti."
+    },
+    {
+      "id": 22,
+      "timestamp_start": 551.4,
+      "timestamp_end": 605.4,
+      "title": "Stabilità e Regularized Loss Minimization (RLM)",
+      "content": [
+        "Per evitare l'overfitting, il modello deve essere *stabile*",
+        "Un algoritmo stabile produce soluzioni simili anche con piccole variazioni nei dati",
+        "Si introduce un termine di *regolarizzazione* nella funzione di costo",
+        "La *Regularized Loss Minimization* (RLM) minimizza: $L_S(\\vec{w}) + R(\\vec{w})$"
+      ],
+      "math_formulas": [
+        "$$\\vec{w} = \\arg\\min_{\\vec{w} \\in H} L_S(\\vec{w}) + R(\\vec{w})$$",
+        "$$R(\\vec{w}) = \\lambda \\|\\vec{w}\\|^2$$"
+      ],
+      "deep_dive": "Il termine di regolarizzazione penalizza soluzioni troppo complesse, favorendo modelli più semplici e stabili."
+    },
+    {
+      "id": 23,
+      "timestamp_start": 605.4,
+      "timestamp_end": 629.4,
+      "title": "Minimizzazione dell'Errore con Penalità di Regolarizzazione",
+      "content": [
+        "Obiettivo: minimizzare l'errore **più una penalità** per la complessità del modello",
+        "La penalità più comune: **norma dei pesi** ($\\|\\vec{w}\\|^2$), che favorisce soluzioni con pesi più piccoli",
+        "Principio di **rasoio di Occam**: preferire modelli semplici per evitare l'**overfitting**",
+        "Il termine di regolarizzazione agisce come un **elastico** che tira i pesi verso lo zero"
+      ],
+      "math_formulas": [
+        "$$R(\\vec{w}) = \\lambda \\|\\vec{w}\\|^2$$"
+      ],
+      "deep_dive": "La regolarizzazione trasforma il problema da convesso a **fortemente convesso**, rendendo la soluzione più stabile e unica."
+    },
+    {
+      "id": 24,
+      "timestamp_start": 629.4,
+      "timestamp_end": 666.4,
+      "title": "Effetti della Regolarizzazione sul Paesaggio dell'Errore",
+      "content": [
+        "Senza regolarizzazione: paesaggio dell'errore **ampio e poco profondo** (simile a una zuppiera)",
+        "Con regolarizzazione: paesaggio **stretto e profondo** (simile a un imbuto)",
+        "Trasforma una funzione **convessa** in una **fortemente convessa**",
+        "L'imbuto guida l'algoritmo verso un **minimo robusto e unico**"
+      ],
+      "math_formulas": [
+        "$$\\vec{w}^* = \\arg\\min_{\\vec{w} \\in \\mathbb{R}^d} L_S(\\vec{w}) + \\lambda \\|\\vec{w}\\|^2$$"
+      ],
+      "deep_dive": "La forte convessità garantisce che il minimo sia **globale** e che l'algoritmo converga più rapidamente."
+    },
+    {
+      "id": 25,
+      "timestamp_start": 666.4,
+      "timestamp_end": 697.4,
+      "title": "Aggiornamento dei Pesi con Regolarizzazione",
+      "content": [
+        "L'aggiornamento fa **due cose** in parallelo:",
+        "- **Riduce l'errore** (passo nella direzione opposta al gradiente)",
+        "- **Tira i pesi verso zero** (passo verso la semplicità, dovuto alla regolarizzazione)",
+        "Equilibrio tra **accuratezza** e **semplicità** per migliorare la generalizzazione",
+        "Applicato alla **regressione lineare**: prende il nome di **Ridge Regression**"
+      ],
+      "math_formulas": [
+        "$$\\vec{w}^{(t+1)} = \\vec{w}^{(t)} - \\eta (\\vec{v}_t + \\lambda \\vec{w}^{(t)})$$"
+      ],
+      "deep_dive": "La Ridge Regression è un esempio classico di come la regolarizzazione migliori la stabilità del modello."
+    },
+    {
+      "id": 26,
+      "timestamp_start": 697.4,
+      "timestamp_end": 725.4,
+      "title": "Sintesi: Dall'Ottimizzazione alla Generalizzazione",
+      "content": [
+        "Partenza: **discesa del gradiente** (troppo lenta per dataset grandi)",
+        "Ottimizzazione: **SGD e mini-batch** per accelerare il processo",
+        "Robustezza: **regolarizzazione** per insegnare al modello a **generalizzare** invece che memorizzare",
+        "Strumenti chiave: **learning rate variabile** e **penalità per la complessità**"
+      ],
+      "math_formulas": [
+        "$$\\eta^{(t)} = \\frac{\\eta_0}{\\sqrt{t}}$$"
+      ],
+      "deep_dive": "La combinazione di SGD, mini-batch e regolarizzazione rende l'algoritmo **efficiente e robusto** per problemi reali."
+    },
+    {
+      "id": 27,
+      "timestamp_start": 725.4,
+      "timestamp_end": 740.4,
+      "title": "L'Importanza della Regularizzazione nel Machine Learning",
+      "content": [
+        "La regularizzazione non è un concetto astratto, ma un elemento fondamentale per il funzionamento dei modelli di machine learning.",
+        "Questi meccanismi (come la regolarizzazione) sono alla base della maggior parte dei modelli moderni di apprendimento automatico.",
+        "Il successo del machine learning su larga scala dipende dalla capacità di navigare i \"paesaggi di errore\" in modo efficiente e stabile."
+      ],
+      "math_formulas": [],
+      "deep_dive": "La regolarizzazione agisce come stabilizzatore e misura della complessità del modello, prevenendo l'overfitting e migliorando la generalizzazione."
+    },
+    {
+      "id": 28,
+      "timestamp_start": 740.4,
+      "timestamp_end": 759.4,
+      "title": "Oltre la Discesa del Gradiente: Esplorare Nuove Direzioni",
+      "content": [
+        "Gli algoritmi tradizionali si basano sull'idea di muoversi sempre nella direzione di discesa più ripida (gradiente).",
+        "Questo approccio può portare a rimanere intrappolati in minimi locali poco profondi."
+      ],
+      "math_formulas": [],
+      "deep_dive": null
+    },
+    {
+      "id": 29,
+      "timestamp_start": 759.4,
+      "timestamp_end": 788.4,
+      "title": "Strategie Alternative: Movimenti Casuali e Salite Controllate",
+      "content": [
+        "Un algoritmo potrebbe deliberatamente fare passi in direzioni casuali o persino \"salire\" temporaneamente la funzione di errore.",
+        "Questo approccio, apparentemente controintuitivo, può aiutare a sfuggire da minimi locali poco profondi.",
+        "L'obiettivo è esplorare altre regioni dello spazio delle soluzioni per trovare valli più profonde (soluzioni migliori)."
+      ],
+      "math_formulas": [],
+      "deep_dive": "Questa idea è alla base di tecniche come il *Simulated Annealing* e gli algoritmi genetici, che introducono elementi di casualità per migliorare l'esplorazione."
+    }
+  ]
+}

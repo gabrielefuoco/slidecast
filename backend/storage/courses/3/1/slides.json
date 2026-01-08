@@ -1,0 +1,483 @@
+{
+  "metadata": {
+    "title": "Introduzione ai Neuroni Artificiali e al Perceptron: Fondamenti delle Reti Neurali",
+    "duration": 904.44
+  },
+  "slides": [
+    {
+      "id": 1,
+      "timestamp_start": 0.0,
+      "timestamp_end": 34.56,
+      "title": "Introduzione al Machine Learning: Il Neurone Artificiale",
+      "content": [
+        "L'obiettivo: costruire una macchina che impara partendo da zero",
+        "Il mattoncino fondamentale: il neurone artificiale, ispirato alla biologia",
+        "Un percorso dalla pratica (funzionamento dei modelli) alla teoria (learnability)",
+        "Focus iniziale: smontare il perceptron per capire come funziona"
+      ],
+      "math_formulas": [],
+      "deep_dive": ""
+    },
+    {
+      "id": 2,
+      "timestamp_start": 34.56,
+      "timestamp_end": 87.92,
+      "title": "Dal Neurone Biologico a Quello Artificiale",
+      "content": [
+        "Il neurone biologico: nucleo, dendriti (input), assone (output)",
+        "Meccanismo base: se la somma degli stimoli supera una soglia, il neurone si attiva",
+        "Semplificazione brillante: tradurre la biologia in un modello matematico",
+        "Nel cervello: 90 miliardi di neuroni, ciascuno con 5k-100k connessioni (dendriti)"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il modello cattura solo gli aspetti essenziali del neurone biologico, tralasciando dettagli complessi per focalizzarsi sulla funzionalità computazionale."
+    },
+    {
+      "id": 3,
+      "timestamp_start": 87.92,
+      "timestamp_end": 124.88,
+      "title": "Il Perceptron: Logica e Matematica",
+      "content": [
+        "Dal biologico all'informatico: i dendriti diventano canali di input",
+        "Ogni input ha un peso ($w_i$) che ne determina l'importanza",
+        "Il neurone calcola la somma ponderata degli input: $\\sum_{i=1}^d w_{i}x_{i}$",
+        "Se la somma supera una soglia ($\theta$), il neurone attiva l'output"
+      ],
+      "math_formulas": [
+        "$$\\sum_{i=1}^d w_{i}x_{i}$$",
+        "$$\\theta$$"
+      ],
+      "deep_dive": "La soglia $\\theta$ può essere incorporata nel modello come un peso aggiuntivo ($w_0 = -\\theta$) associato a un input fittizio ($x_0 = 1$)."
+    },
+    {
+      "id": 4,
+      "timestamp_start": 124.88,
+      "timestamp_end": 166.6,
+      "title": "Il Perceptron: Funzionamento e Geometria",
+      "content": [
+        "Il neurone artificiale (Perceptron) attiva l'uscita solo se la somma degli input supera una soglia",
+        "Ogni input ha un **peso** ($w_i$) che ne determina l'importanza: non tutti gli input sono uguali",
+        "Geometricamente, il Perceptron traccia un **iperpiano** che divide lo spazio in due regioni",
+        "Classificazione binaria: un lato dell'iperpiano = +1, l'altro lato = -1"
+      ],
+      "math_formulas": [
+        "$$\\sum_{i=1}^d w_{i}x_{i} > \\theta$$",
+        "$$h_{\\vec{w},\\theta}(\\vec{x}) = \\text{sign}[\\sum_{i=1}^d w_{i}x_{i} - \\theta]$$"
+      ],
+      "deep_dive": "L'iperpiano rappresenta il confine decisionale che separa le due classi in uno spazio multidimensionale."
+    },
+    {
+      "id": 5,
+      "timestamp_start": 167.92,
+      "timestamp_end": 211.16,
+      "title": "Apprendimento del Perceptron",
+      "content": [
+        "Il Perceptron **impara dai dati**: non ha regole fisse, ma le scopre attraverso l'addestramento",
+        "Algoritmo di apprendimento: inizia con pesi casuali e corregge gli errori",
+        "Se la classificazione è sbagliata: aggiusta i pesi per spostare l'iperpiano verso il punto corretto",
+        "Formula di aggiornamento: $\\vec{w}^{(t+1)} = \\vec{w}^{(t)} + y_i\\vec{x_i}$"
+      ],
+      "math_formulas": [
+        "$$\\vec{w}^{(t+1)} = \\vec{w}^{(t)} + y_i\\vec{x_i}$$"
+      ],
+      "deep_dive": "Ogni errore sposta progressivamente l'iperpiano, migliorando la classificazione nel tempo."
+    },
+    {
+      "id": 6,
+      "timestamp_start": 211.16,
+      "timestamp_end": 246.92,
+      "title": "Il Teorema del Perceptron: Garanzia di Convergenza",
+      "content": [
+        "Domanda cruciale: l'algoritmo converge sempre o può iterare all'infinito?",
+        "Il **Teorema del Perceptron** fornisce una garanzia matematica di convergenza",
+        "Condizione necessaria: i dati devono essere **linearmente separabili**",
+        "Se esiste un iperpiano che separa perfettamente i dati, l'algoritmo lo troverà in un numero finito di passi"
+      ],
+      "math_formulas": [
+        "$$T \\le (RB)^2$$"
+      ],
+      "deep_dive": "Il teorema dimostra che il numero massimo di iterazioni è limitato superiormente da $(RB)^2$, dove $R$ e $B$ sono parametri legati alla distribuzione dei dati."
+    },
+    {
+      "id": 7,
+      "timestamp_start": 246.92,
+      "timestamp_end": 285.36,
+      "title": "Il Teorema del Perceptron: Convergenza Garantita",
+      "content": [
+        "Il Perceptron converge in un numero finito di passaggi se esiste una soluzione",
+        "Non si tratta di programmare regole fisse, ma di far scoprire le regole alla macchina",
+        "Dimostrazione intuitiva: ad ogni errore, il vettore dei pesi si avvicina alla soluzione",
+        "L'angolo tra il vettore corrente e la soluzione si riduce progressivamente fino a trovare la soluzione"
+      ],
+      "math_formulas": [
+        "$$\\sum_{i=1}^d w_{i}x_{i}$$",
+        "$$h_{\\vec{w},\\theta}(\\vec{x})=sign[\\sum_{i=1}^d w_{i}x_{i}-\\theta]$$"
+      ],
+      "deep_dive": "La dimostrazione matematica mostra che l'algoritmo garantisce la convergenza per dati linearmente separabili, rappresentando una svolta concettuale nel machine learning."
+    },
+    {
+      "id": 8,
+      "timestamp_start": 285.36,
+      "timestamp_end": 314.12,
+      "title": "Dai Problemi Binari ai Valori Continui",
+      "content": [
+        "Il Perceptron è ideale per risposte binarie (sì/no, gatto/cane)",
+        "La realtà richiede spesso predizioni di valori continui (prezzo case, temperatura)",
+        "Per questi problemi serve un cambio di paradigma: dalla classificazione alla regressione",
+        "La struttura di base rimane simile (combinazione lineare di pesi e input)"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Mentre il Perceptron traccia confini netti, la regressione cerca di adattarsi ai dati con una funzione continua."
+    },
+    {
+      "id": 9,
+      "timestamp_start": 314.12,
+      "timestamp_end": 367.2,
+      "title": "Regressione Lineare: Trovare la Retta Ottimale",
+      "content": [
+        "Il modello rimane una combinazione lineare: $h_w(x) = \\langle w,x \\rangle$",
+        "Obiettivo: trovare una retta che si adatti al meglio ai dati (non che li separi)",
+        "Il concetto di 'migliore' viene definito matematicamente tramite una funzione di costo",
+        "La perdita quadratica misura l'errore come distanza verticale tra retta e punti"
+      ],
+      "math_formulas": [
+        "$$h_w(x) = \\langle w,x \\rangle$$",
+        "$$lsq(h_w,(x,y)) = (h_w(x)-y)^2 = (\\langle w,x \\rangle -y)^2$$"
+      ],
+      "deep_dive": "La funzione di costo trasforma il problema soggettivo di 'adattamento' in un problema matematico risolvibile analiticamente o numericamente."
+    },
+    {
+      "id": 10,
+      "timestamp_start": 367.2,
+      "timestamp_end": 380.32,
+      "title": "Minimizzazione dell'Errore nella Regressione Lineare",
+      "content": [
+        "L'obiettivo è minimizzare la distanza tra i punti dati e la retta di previsione",
+        "Si utilizza la **perdita quadratica**: $(h_w(x) - y)^2$ per ogni campione",
+        "La funzione di costo totale è la somma delle perdite quadratiche: $L_S(w) = \\frac{1}{m}\\sum_{i=1}^m (\\langle w, x_i \\rangle - y_i)^2$",
+        "Si cercano i pesi $w$ che minimizzano questa funzione"
+      ],
+      "math_formulas": [
+        "$L_S(w) = \\frac{1}{m}\\sum_{i=1}^m (\\langle w, x_i \\rangle - y_i)^2$"
+      ],
+      "deep_dive": "La perdita quadratica penalizza maggiormente gli errori grandi, rendendo la funzione di costo sensibile agli outlier."
+    },
+    {
+      "id": 11,
+      "timestamp_start": 380.32,
+      "timestamp_end": 408.72,
+      "title": "Proprietà della Funzione di Costo",
+      "content": [
+        "La funzione di costo ha una forma **convessa**, simile a una scodella",
+        "Esiste un **unico minimo globale**, dove il gradiente è zero",
+        "Il gradiente rappresenta la pendenza della funzione: $\\nabla_w L_S(h_w) = 0$",
+        "Il minimo globale corrisponde all'errore minimo possibile per il modello"
+      ],
+      "math_formulas": [
+        "$\\nabla_w L_S(h_w) = 0$"
+      ],
+      "deep_dive": "La convessità garantisce che non esistano minimi locali, semplificando la ricerca della soluzione ottimale."
+    },
+    {
+      "id": 12,
+      "timestamp_start": 408.72,
+      "timestamp_end": 426.32,
+      "title": "Limiti della Regressione Lineare",
+      "content": [
+        "La regressione lineare funziona bene solo per relazioni lineari tra dati",
+        "In presenza di **relazioni non lineari** (curve, traiettorie complesse), il modello fallisce",
+        "Serve un approccio che mantenga la semplicità del modello lineare ma gestisca la non linearità"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La linearità è un'ipotesi forte: molti fenomeni reali seguono andamenti curvilinei o complessi."
+    },
+    {
+      "id": 13,
+      "timestamp_start": 430.68,
+      "timestamp_end": 460.36,
+      "title": "Regressione Polinomiale: Il Trucco Geniale",
+      "content": [
+        "Non si modifica l'algoritmo di regressione lineare, ma si **trasformano i dati**",
+        "Si aggiungono nuove caratteristiche: $x, x^2, x^3, \\dots, x^n$ come input indipendenti",
+        "In questo modo, una relazione non lineare nello spazio originale diventa **lineare** nello spazio trasformato",
+        "L'algoritmo lavora su dati trasformati: $\\phi(x) = (1, x, x^2, \\dots, x^n)$"
+      ],
+      "math_formulas": [
+        "$\\phi(x) = (1, x, x^2, \\dots, x^n)$",
+        "$h_w(x) = \\langle w, \\phi(x) \\rangle$"
+      ],
+      "deep_dive": "La trasformazione $\\phi$ proietta i dati in uno spazio di dimensione superiore, dove la linearità è ripristinata."
+    },
+    {
+      "id": 14,
+      "timestamp_start": 460.36,
+      "timestamp_end": 490.76,
+      "title": "Come Funziona la Trasformazione",
+      "content": [
+        "La funzione $\\phi$ mappa i dati originali in uno spazio con più dimensioni",
+        "Nello spazio trasformato, la regressione lineare trova un **iperpiano**",
+        "Proiettando l'iperpiano nello spazio originale, si ottiene una **curva polinomiale**",
+        "Il risultato è un modello non lineare che si adatta ai dati complessi"
+      ],
+      "math_formulas": [
+        "$h_w(x) = w_0 + w_1x + w_2x^2 + \\dots + w_nx^n$"
+      ],
+      "deep_dive": "L'iperpiano nello spazio trasformato corrisponde a un polinomio di grado $n$ nello spazio originale."
+    },
+    {
+      "id": 15,
+      "timestamp_start": 490.76,
+      "timestamp_end": 503.04,
+      "title": "Aumentare la Potenza del Modello",
+      "content": [
+        "Estensione del modello senza modifiche strutturali",
+        "Gestione di diversi tipi di problemi:",
+        "$$\\text{Seno} \\rightarrow \\text{Classificazione}$$",
+        "$$\\text{Numeri} \\rightarrow \\text{Regressione}$$",
+        "Introduzione di modelli per gestire curve complesse"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore sottolinea come sia possibile ampliare le capacità del modello senza alterarne il nucleo, adattandolo a scenari diversi."
+    },
+    {
+      "id": 16,
+      "timestamp_start": 503.04,
+      "timestamp_end": 517.04,
+      "title": "Dalla Classificazione Binaria alle Probabilità",
+      "content": [
+        "Limiti delle etichette binarie (0/1)",
+        "Necessità di misurare la *certezza* del modello",
+        "Transizione verso un output probabilistico ($$[0, 1]$$)",
+        "Introduzione alla **regressione logistica** come soluzione"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore evidenzia il passaggio da una risposta binaria a una valutazione quantitativa della confidenza del modello."
+    },
+    {
+      "id": 17,
+      "timestamp_start": 517.04,
+      "timestamp_end": 545.44,
+      "title": "Regressione Logistica: Fondamenti",
+      "content": [
+        "Nome fuorviante: è un **modello di classificazione**",
+        "Output: probabilità di appartenenza alla classe positiva ($$h(x) \\in [0, 1]$$)",
+        "Partenza da un modello lineare ($$\\langle w, x \\rangle$$)",
+        "Problema: output lineare $$\\in (-\\infty, +\\infty)$$ non interpretabile come probabilità"
+      ],
+      "math_formulas": [
+        "$$h(x) = Pr[x \\in \\text{classe positiva}] \\in [0, 1]$$",
+        "$$\\langle w, x \\rangle$$"
+      ],
+      "deep_dive": "Il relatore chiarisce che la regressione logistica, nonostante il nome, è utilizzata per la classificazione probabilistica."
+    },
+    {
+      "id": 18,
+      "timestamp_start": 545.44,
+      "timestamp_end": 566.44,
+      "title": "La Funzione Sigmoide",
+      "content": [
+        "Trasformazione dell'output lineare in probabilità",
+        "Funzione sigmoide: $$\\sigma(z) = \\frac{1}{1 + e^{-z}}$$",
+        "Proprietà:",
+        "- $$z \\rightarrow -\\infty \\Rightarrow \\sigma(z) \\rightarrow 0$$",
+        "- $$z = 0 \\Rightarrow \\sigma(z) = 0.5$$ (massima incertezza)",
+        "- $$z \\rightarrow +\\infty \\Rightarrow \\sigma(z) \\rightarrow 1$$"
+      ],
+      "math_formulas": [
+        "$$\\sigma(z) = \\frac{1}{1 + e^{-z}}$$",
+        "$$h_w(x) = \\sigma(\\langle w, x \\rangle)$$"
+      ],
+      "deep_dive": "La sigmoide mappa qualsiasi numero reale nell'intervallo [0, 1], rendendolo interpretabile come probabilità."
+    },
+    {
+      "id": 19,
+      "timestamp_start": 566.44,
+      "timestamp_end": 594.44,
+      "title": "Cross-Entropy Loss: Penalizzare l'Errore",
+      "content": [
+        "Necessità di una nuova funzione di errore per probabilità",
+        "Cross-entropy loss: penalizza errori con alta confidenza",
+        "Formula: $$l_{CE}(h,(x,y)) = -y \\log(h(x)) - (1-y) \\log(1-h(x))$$",
+        "Comportamento:",
+        "- Se $$y=1$$ e $$h(x) \\rightarrow 0$$, la loss $$\\rightarrow +\\infty$$",
+        "- Se $$y=0$$ e $$h(x) \\rightarrow 1$$, la loss $$\\rightarrow +\\infty$$"
+      ],
+      "math_formulas": [
+        "$$l_{CE}(h,(x,y)) = -y \\log(h(x)) - (1-y) \\log(1-h(x))$$"
+      ],
+      "deep_dive": "La cross-entropy loss spinge il modello a essere accurato *e* calibrato nella sua confidenza."
+    },
+    {
+      "id": 20,
+      "timestamp_start": 594.44,
+      "timestamp_end": 614.44,
+      "title": "Vantaggi e Sintesi dei Modelli",
+      "content": [
+        "Regressione logistica: classificazione probabilistica",
+        "Cross-entropy loss: penalizza errori con alta confidenza",
+        "Cassetta degli attrezzi completa:",
+        "- Classificatori (Perceptron)",
+        "- Regressori (lineare/polinomiale)",
+        "- Modelli probabilistici (regressione logistica)"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore riassume i modelli discussi, evidenziando come ciascuno risolva problemi specifici con approcci distinti."
+    },
+    {
+      "id": 21,
+      "timestamp_start": 614.44,
+      "timestamp_end": 637.44,
+      "title": "Limiti dell'Apprendimento Automatico",
+      "content": [
+        "Esistono limiti intrinseci e matematicamente dimostrabili nell'apprendimento automatico",
+        "Non esiste un algoritmo di apprendimento universale perfetto per tutti i problemi (No-Free Lunch Theorem)",
+        "Un modello efficace in un dominio (es. riconoscimento immagini) può fallire in un altro (es. previsione mercato azionario)",
+        "Ogni modello ha pregiudizi (bias) che funzionano solo se corrispondono alla natura del problema"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il No-Free Lunch Theorem dimostra che senza assunzioni sul problema, nessun algoritmo può essere universalmente superiore."
+    },
+    {
+      "id": 22,
+      "timestamp_start": 637.44,
+      "timestamp_end": 677.44,
+      "title": "Come Valutare l'Idoneità di un Modello",
+      "content": [
+        "Per determinare se un modello è adatto, bisogna analizzare la sua capacità di apprendere una classe di problemi",
+        "La teoria dell'apprendimento computazionale studia quando una classe di problemi è intrinsecamente imparabile con un certo approccio",
+        "Lo strumento chiave per misurare la potenza di un modello è la **Dimensione di Vapnik-Chervonenkis (VC Dimension)**",
+        "La VC Dimension è un numero che quantifica la complessità di una famiglia di modelli"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La VC Dimension non è solo un concetto teorico, ma fornisce una metrica pratica per confrontare diversi modelli."
+    },
+    {
+      "id": 23,
+      "timestamp_start": 677.44,
+      "timestamp_end": 724.44,
+      "title": "VC Dimension e Shattering",
+      "content": [
+        "La capacità di un modello si misura tramite lo **shattering** (frantumazione)",
+        "Un modello frantuma un insieme di punti se può classificarli in tutti i modi possibili (es. bianco/nero)",
+        "Esempio: una famiglia di rette nel piano può frantumare 3 punti se riesce a separare tutte le combinazioni di colori",
+        "La VC Dimension è il numero massimo di punti che una famiglia di modelli può frantumare"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Lo shattering è un concetto chiave: se un modello non può frantumare un insieme di punti, la sua VC Dimension è inferiore alla cardinalità di quell'insieme."
+    },
+    {
+      "id": 24,
+      "timestamp_start": 724.44,
+      "timestamp_end": 737.44,
+      "title": "Esempi di VC Dimension",
+      "content": [
+        "Una soglia su una linea ($h_θ(x) = 1[x > θ]$) può frantumare solo **1 punto**",
+        "Non può classificare un punto a sinistra come nero e uno a destra come bianco (o viceversa) in modo arbitrario",
+        "La VC Dimension di una soglia è quindi **1**",
+        "Altri esempi: intervalli ($VCdim = 2$), rettangoli ($VCdim = 4$)"
+      ],
+      "math_formulas": [
+        "$h_θ(x) = 1[x > θ]$"
+      ],
+      "deep_dive": "La VC Dimension dipende dalla flessibilità del modello: più parametri liberi, maggiore è la VC Dimension."
+    },
+    {
+      "id": 25,
+      "timestamp_start": 737.44,
+      "timestamp_end": 759.44,
+      "title": "VC-Dimension: Esempi Pratici",
+      "content": [
+        "La **VC-Dimension** misura la flessibilità di un modello.",
+        "Funzioni soglia (es: $h_θ(x) = 1[x > θ]$): VC-Dimension = 1 (frantuma 1 punto, fallisce con 2).",
+        "Intervalli (es: $h_{a,l}(x) = 1[a ≤ x ≤ l]$): VC-Dimension = 2 (frantuma 2 punti, fallisce con 3).",
+        "Rettangoli allineati agli assi: VC-Dimension = 4 (frantuma 4 punti, fallisce con 5)."
+      ],
+      "math_formulas": [],
+      "deep_dive": "La VC-Dimension quantifica il numero massimo di punti che un modello può classificare in tutti i modi possibili, definendo la sua capacità di generalizzazione."
+    },
+    {
+      "id": 26,
+      "timestamp_start": 762.44,
+      "timestamp_end": 790.44,
+      "title": "Teorema Fondamentale del PAC Learning",
+      "content": [
+        "Una classe di modelli è **PAC Learnable** (in grado di generalizzare) **se e solo se** la sua VC-Dimension è **finita**.",
+        "VC-Dimension finita → Modello può imparare regole generali dai dati.",
+        "VC-Dimension infinita → Modello memorizza i dati di training ma **non generalizza**.",
+        "Rappresenta una linea di demarcazione tra apprendimento e memorizzazione."
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il teorema lega la complessità del modello (VC-Dimension) alla sua capacità di apprendere, evitando l'overfitting."
+    },
+    {
+      "id": 27,
+      "timestamp_start": 790.44,
+      "timestamp_end": 821.44,
+      "title": "Perchè la VC-Dimension Infinita è Problematica",
+      "content": [
+        "Un modello con VC-Dimension infinita è **troppo flessibile**.",
+        "Può frantumare qualsiasi numero di punti, **memorizzando** i dati di training.",
+        "Non impara regole generali: fallisce con dati nuovi.",
+        "Esempio: Un modello che disegna confini perfetti attorno ai dati di training **non generalizza**."
+      ],
+      "math_formulas": [],
+      "deep_dive": "La VC-Dimension infinita porta all'overfitting, dove il modello si adatta al rumore anziché al pattern sottostante."
+    },
+    {
+      "id": 28,
+      "timestamp_start": 821.44,
+      "timestamp_end": 860.44,
+      "title": "Compromesso nel Machine Learning",
+      "content": [
+        "Partendo da un semplice neurone artificiale, siamo arrivati a comprendere **cosa significa imparare**.",
+        "Modelli lineari possono risolvere problemi di classificazione, regressione e relazioni non lineari.",
+        "**Compromesso chiave**: Bilanciare la potenza del modello (VC-Dimension) con la generalizzazione.",
+        "Modello troppo semplice → **Underfitting** (non cattura la struttura dei dati).",
+        "Modello troppo complesso → **Overfitting** (memorizza rumore e dettagli casuali)."
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il machine learning è una tensione costante tra complessità del modello e capacità di generalizzare a dati nuovi."
+    },
+    {
+      "id": 29,
+      "timestamp_start": 860.44,
+      "timestamp_end": 870.44,
+      "title": "VC-Dimension e Generalizzazione",
+      "content": [
+        "La VC-Dimension fornisce un linguaggio formale per bilanciare complessità e generalizzazione",
+        "Troppo bassa: underfitting (modello troppo semplice)",
+        "Troppo alta: overfitting (modello troppo complesso, perde capacità di generalizzare)",
+        "L'obiettivo è trovare il punto di equilibrio ottimale"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La VC-Dimension quantifica la capacità di una classe di ipotesi di adattarsi ai dati, influenzando direttamente la capacità di generalizzazione del modello."
+    },
+    {
+      "id": 30,
+      "timestamp_start": 870.44,
+      "timestamp_end": 896.44,
+      "title": "Effetto della Rotazione sulla VC-Dimension",
+      "content": [
+        "Un rettangolo con lati allineati agli assi ha VC-Dimension = 4",
+        "Introducendo la rotazione libera nel piano, la complessità aumenta",
+        "La rotazione permette di 'frantumare' più configurazioni di punti",
+        "Questo aumenta la VC-Dimension e il rischio di overfitting"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La libertà aggiuntiva (rotazione) espande lo spazio delle ipotesi, potenzialmente rendendo il modello troppo potente per generalizzare correttamente."
+    },
+    {
+      "id": 31,
+      "timestamp_start": 896.44,
+      "timestamp_end": 904.44,
+      "title": "Implicazioni sulla Learnability",
+      "content": [
+        "Un aumento della VC-Dimension riduce la capacità di generalizzare",
+        "Modelli troppo complessi falliscono nell'imparare da nuovi dati",
+        "La VC-Dimension aiuta a quantificare questo rischio"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La VC-Dimension finita è condizione necessaria per l'apprendimento PAC, ma valori troppo alti compromettono la generalizzazione."
+    }
+  ]
+}

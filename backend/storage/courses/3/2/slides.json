@@ -1,0 +1,505 @@
+{
+  "metadata": {
+    "title": "Introduzione alle Reti Neurali: Architetture e Modelli Feedforward",
+    "duration": 944.32
+  },
+  "slides": [
+    {
+      "id": 1,
+      "timestamp_start": 0.0,
+      "timestamp_end": 25.32,
+      "title": "Introduzione alle Reti Neurali Artificiali",
+      "content": [
+        "Le reti neurali artificiali sono ispirate alla complessità del cervello umano",
+        "Catturano una piccola parte della sua capacità di elaborazione e apprendimento",
+        "Obiettivo: comprendere come funzionano questi modelli partendo dalle basi"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore sottolinea come le reti neurali rappresentino un tentativo di emulare, seppur in modo estremamente semplificato, le capacità cognitive umane."
+    },
+    {
+      "id": 2,
+      "timestamp_start": 25.32,
+      "timestamp_end": 64.32,
+      "title": "Approccio Didattico: Dalle Basi alle Architetture",
+      "content": [
+        "Analisi dal basso verso l'alto: dal singolo neurone alle architetture complesse",
+        "Materiale di supporto: formule, diagrammi e concetti tecnici",
+        "Focus iniziale sulle reti feedforward, l'architettura più fondamentale"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore enfatizza l'importanza di comprendere prima le strutture più semplici per poi affrontare quelle più complesse."
+    },
+    {
+      "id": 3,
+      "timestamp_start": 64.32,
+      "timestamp_end": 80.32,
+      "title": "Reti Feedforward: Flusso Unidirezionale",
+      "content": [
+        "L'informazione scorre in una sola direzione: input → strati intermedi → output",
+        "Simile a una catena di montaggio con flusso ascendente unico",
+        "Anche in questa semplicità risiede una potenza computazionale notevole"
+      ],
+      "math_formulas": [],
+      "deep_dive": null
+    },
+    {
+      "id": 4,
+      "timestamp_start": 80.32,
+      "timestamp_end": 120.32,
+      "title": "Il Neurone Artificiale: Unità Fondamentale",
+      "content": [
+        "Rappresentato come un cerchio con frecce in ingresso e una in uscita",
+        "Funziona come un \"giudice\" che valuta le informazioni in ingresso",
+        "Ogni input è moltiplicato per un peso che ne determina l'importanza",
+        "L'output è la somma ponderata degli input: $\\sum_{i} w_i x_i$"
+      ],
+      "math_formulas": [
+        "$$\\sum_{i} w_i x_i$$"
+      ],
+      "deep_dive": "I pesi rappresentano l'importanza relativa di ogni input e sono modificati durante l'apprendimento della rete."
+    },
+    {
+      "id": 5,
+      "timestamp_start": 120.32,
+      "timestamp_end": 149.32,
+      "title": "Il Ruolo della Funzione di Attivazione",
+      "content": [
+        "Ogni neurone artificiale esegue una **somma pesata** degli input ricevuti",
+        "Senza una funzione di attivazione, la rete sarebbe solo un modello **lineare**",
+        "La funzione di attivazione introduce **non-linearità**, permettendo alla rete di apprendere relazioni complesse",
+        "Esempi di problemi complessi: riconoscimento di immagini, traduzione automatica"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La non-linearità è fondamentale perché il mondo reale non è lineare. Senza di essa, reti anche profonde sarebbero solo calcolatrici lineari."
+    },
+    {
+      "id": 6,
+      "timestamp_start": 149.32,
+      "timestamp_end": 175.32,
+      "title": "La Scintilla Non Lineare",
+      "content": [
+        "La funzione di attivazione agisce come un **interruttore** dopo la somma pesata",
+        "Decide se e con quale intensità **trasmettere il segnale** al livello successivo",
+        "Questo passaggio è cruciale per l'apprendimento di pattern complessi",
+        "Esempi di decisioni: segnale forte, debole o assente ($\\phi(net_j)$)"
+      ],
+      "math_formulas": [
+        "$$\\phi(net_j)$$"
+      ],
+      "deep_dive": "È questo 'piccolo step' che trasforma una semplice somma in un sistema capace di apprendere funzioni complesse."
+    },
+    {
+      "id": 7,
+      "timestamp_start": 175.32,
+      "timestamp_end": 200.32,
+      "title": "Architettura a Livelli delle Reti Neurali",
+      "content": [
+        "I neuroni sono organizzati in **strati** (livelli)",
+        "Struttura tipica: **input → livelli nascosti → output**",
+        "I livelli nascosti sono il **motore** dell'apprendimento",
+        "Ogni livello elabora l'output del livello precedente"
+      ],
+      "math_formulas": [],
+      "deep_dive": "I livelli nascosti permettono alla rete di costruire rappresentazioni interne dei dati, sempre più astratte man mano che si procede verso l'output."
+    },
+    {
+      "id": 8,
+      "timestamp_start": 200.32,
+      "timestamp_end": 239.32,
+      "title": "Reti Dense: Forza e Complessità Computazionale",
+      "content": [
+        "Nelle reti **dense**, ogni neurone è connesso a **tutti i neuroni del livello successivo**",
+        "Con pochi livelli e molti neuroni, il numero di connessioni **esplode** (es: milioni di pesi)",
+        "Questa complessità richiede **potenza computazionale elevata** (GPU/TPU moderne)",
+        "La connettività totale permette di **scoprire correlazioni nascoste** nei dati"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La densità delle connessioni è sia una sfida computazionale che la chiave per catturare pattern che sfuggono all'analisi umana."
+    },
+    {
+      "id": 9,
+      "timestamp_start": 253.32,
+      "timestamp_end": 294.32,
+      "title": "Rappresentazione delle Reti Neurali come Grafi",
+      "content": [
+        "Le reti neurali possono essere viste come una **mappa**",
+        "I **neuroni** rappresentano i **nodi** del grafo",
+        "Le **connessioni** tra neuroni sono gli **archi**",
+        "Ogni arco ha un **peso** (un 'pedaggio' per l'informazione)"
+      ],
+      "math_formulas": [],
+      "deep_dive": "L'informazione fluisce dall'input all'output esplorando tutte le combinazioni possibili di percorsi attraverso i nodi e gli archi pesati."
+    },
+    {
+      "id": 10,
+      "timestamp_start": 294.32,
+      "timestamp_end": 348.32,
+      "title": "Evoluzione delle Funzioni di Attivazione",
+      "content": [
+        "Le prime funzioni di attivazione erano **rigide**: segno, gradino (0/1 o ±1)",
+        "Problema critico: **derivata quasi nulla** (es. funzione gradino)",
+        "Senza derivata, l'algoritmo di apprendimento **non sa in che direzione muoversi**",
+        "Risultato: la rete **non impara** (un 'vicolo cieco')"
+      ],
+      "math_formulas": [
+        "$$\\frac{d}{dx}\\text{gradino}(x) \\approx 0$$"
+      ],
+      "deep_dive": "La derivata è essenziale per calcolare come modificare i pesi: se la derivata è zero, l'algoritmo non può determinare se una piccola variazione del peso migliora o peggiora le prestazioni."
+    },
+    {
+      "id": 11,
+      "timestamp_start": 348.32,
+      "timestamp_end": 373.32,
+      "title": "Funzioni di Attivazione Moderne",
+      "content": [
+        "Soluzione: funzioni **morbide** con derivata ben definita (es. **sigmoide**, **tangente iperbolica**)",
+        "Vantaggio: **derivata non nulla** → l'algoritmo può apprendere",
+        "Limite: **saturazione** agli estremi (curve che si appiattiscono)",
+        "Problema: il gradiente tende a **zero** lontano dall'origine"
+      ],
+      "math_formulas": [
+        "$$\\sigma'(x) = \\sigma(x)(1 - \\sigma(x))$$",
+        "$$\\tanh(x) = 2\\sigma(2x) - 1$$"
+      ],
+      "deep_dive": "La saturazione agli estremi rende difficile l'apprendimento per valori di input molto grandi o molto piccoli, poiché la derivata diventa quasi nulla."
+    },
+    {
+      "id": 12,
+      "timestamp_start": 373.32,
+      "timestamp_end": 399.32,
+      "title": "Il Problema del Vanishing Gradient",
+      "content": [
+        "Le funzioni di attivazione tradizionali (es. sigmoide) hanno regioni di saturazione dove la derivata è quasi zero",
+        "Nelle reti profonde, questo causa il **Vanishing Gradient**: il segnale del gradiente diventa sempre più debole durante la backpropagation",
+        "Il gradiente \"svanisce\" negli strati iniziali, impedendo l'apprendimento efficace",
+        "Analogia: come un telefono senza fili dove il messaggio si perde progressivamente"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il problema è particolarmente critico nelle reti con molti strati, dove il gradiente deve essere propagato all'indietro attraverso numerose funzioni di attivazione."
+    },
+    {
+      "id": 13,
+      "timestamp_start": 400.32,
+      "timestamp_end": 442.32,
+      "title": "La Soluzione: ReLU (Rectified Linear Unit)",
+      "content": [
+        "Funzione semplicissima: $ReLU(x) = \\max(0, x)$",
+        "Se l'input è negativo → output 0; se positivo → output = input",
+        "Risolve il problema del vanishing gradient perché la derivata è 1 per input positivi",
+        "Ha permesso di addestrare reti neurali molto più profonde, rivoluzionando il deep learning"
+      ],
+      "math_formulas": [
+        "$$\\mathrm{ReLU}(x) = \\max(0, x)$$",
+        "$$\\mathrm{ReLU}'(x) = \\begin{cases} 0, & x < 0 \\\\ 1, & x \\geq 0 \\end{cases}$$"
+      ],
+      "deep_dive": "Nonostante la sua semplicità, ReLU è diventata la funzione di attivazione più utilizzata nelle reti neurali moderne per la sua efficienza computazionale e capacità di evitare la saturazione."
+    },
+    {
+      "id": 14,
+      "timestamp_start": 446.32,
+      "timestamp_end": 476.32,
+      "title": "Funzioni Booleane e Neuroni Artificiali",
+      "content": [
+        "Un singolo neurone con funzione a gradino può implementare funzioni logiche semplici (AND, OR)",
+        "Geometricamente: traccia una linea che separa lo spazio in due regioni (vero/falso)",
+        "La funzione AND restituisce vero solo se tutti gli input sono veri",
+        "La funzione OR restituisce vero se almeno un input è vero"
+      ],
+      "math_formulas": [
+        "$$h_{AND}(\\vec{x}) = \\text{sign}\\left(\\sum_{i}x_{i} - d + 0.5\\right)$$",
+        "$$h_{OR}(\\vec{x}) = \\text{sign}\\left(\\sum_{i}x_{i} + d - 1.5\\right)$$"
+      ],
+      "deep_dive": "Questa capacità di separazione lineare è alla base del potere espressivo dei neuroni artificiali, ma ha dei limiti fondamentali."
+    },
+    {
+      "id": 15,
+      "timestamp_start": 478.32,
+      "timestamp_end": 493.32,
+      "title": "Il Problema XOR: Limiti dei Singoli Neuroni",
+      "content": [
+        "Esiste una funzione logica semplice che un singolo neurone non può implementare: XOR (OR esclusivo)",
+        "XOR restituisce vero solo se gli input sono diversi (uno vero e uno falso)",
+        "Il problema XOR ha quasi bloccato lo sviluppo delle reti neurali per anni",
+        "La soluzione richiede reti neurali con più strati (non linearmente separabile)"
+      ],
+      "math_formulas": [
+        "$$x_1 \\oplus x_2 = x_1 \\overline{x_2} + \\overline{x_1} x_2$$"
+      ],
+      "deep_dive": "La non linearità di XOR dimostra che reti con un solo strato hanno capacità limitate, spingendo verso architetture multistrato."
+    },
+    {
+      "id": 16,
+      "timestamp_start": 493.32,
+      "timestamp_end": 509.32,
+      "title": "Il Problema dello XOR",
+      "content": [
+        "Lo XOR è vero solo se uno dei due input è vero, ma non entrambi",
+        "Rappresentazione grafica: 4 punti non linearmente separabili",
+        "Impossibilità di tracciare una singola retta per separare i punti veri da quelli falsi",
+        "Scoperta negli anni '60: crisi dell'IA (\"prima vera dell'intelligenza artificiale\")"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La non linearità dello XOR ha portato a una riduzione dei fondi per la ricerca, ma ha anche stimolato lo sviluppo di soluzioni più avanzate."
+    },
+    {
+      "id": 17,
+      "timestamp_start": 521.32,
+      "timestamp_end": 559.32,
+      "title": "Soluzione a Due Livelli per lo XOR",
+      "content": [
+        "Aggiungere un secondo livello risolve il problema della non linearità",
+        "Primo livello: traccia due linee diverse creando un nuovo spazio di rappresentazione",
+        "Secondo livello: separa facilmente i punti nel nuovo spazio con una linea retta",
+        "Il primo livello impara a trasformare il problema in una forma più semplice"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Questa soluzione dimostra come i livelli nascosti possano apprendere rappresentazioni intermedie utili per risolvere problemi complessi."
+    },
+    {
+      "id": 18,
+      "timestamp_start": 566.32,
+      "timestamp_end": 586.32,
+      "title": "Potere Espressivo delle Reti Neurali",
+      "content": [
+        "Un livello: traccia linee (semispazi)",
+        "Due livelli: interseca linee creando regioni convesse",
+        "Tre o più livelli: unione di regioni convesse per forme complesse",
+        "Teorema dell'approssimatore universale: risposta alla domanda sui limiti"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La capacità di creare regioni complesse aumenta esponenzialmente con l'aggiunta di livelli nascosti."
+    },
+    {
+      "id": 19,
+      "timestamp_start": 589.32,
+      "timestamp_end": 614.32,
+      "title": "Teorema dell'Approssimatore Universale",
+      "content": [
+        "Una rete con un solo livello nascosto e funzione di attivazione non lineare può approssimare qualsiasi funzione continua",
+        "Precisione dipendente dal numero di neuroni",
+        "Garanzia matematica della potenza espressiva delle reti neurali",
+        "Possibilità di apprendere quasi qualsiasi pattern con sufficiente capacità"
+      ],
+      "math_formulas": [
+        "$$f:[-1,+1]^d \\to [-1,+1]$$",
+        "$$\\forall x \\in D, f(x) - \\epsilon \\leq h(x) \\leq f(x) + \\epsilon$$"
+      ],
+      "deep_dive": "Questo teorema spiega perché le reti neurali sono così efficaci nel modellare relazioni complesse nei dati."
+    },
+    {
+      "id": 20,
+      "timestamp_start": 614.32,
+      "timestamp_end": 629.32,
+      "title": "Il Problema dell'Ottimizzazione nelle Reti Neurali",
+      "content": [
+        "Le reti neurali hanno un'architettura con potenziale quasi infinito",
+        "Come si coordinano milioni di pesi per ottenere il risultato desiderato?",
+        "Si trasforma il problema in un **problema di ottimizzazione**",
+        "Si definisce una **funzione di loss (o costo)** per misurare l'errore della rete"
+      ],
+      "math_formulas": [],
+      "deep_dive": "La funzione di loss quantifica quanto la predizione della rete si discosta dal risultato atteso, guidando il processo di apprendimento."
+    },
+    {
+      "id": 21,
+      "timestamp_start": 629.32,
+      "timestamp_end": 667.32,
+      "title": "La Sfida della Ricerca della Soluzione Ottimale",
+      "content": [
+        "La funzione di loss misura l'errore: alto se la rete sbaglia, basso se si avvicina al risultato corretto",
+        "Obiettivo: trovare la combinazione di pesi che **minimizza l'errore**",
+        "Trovare la soluzione ottimale è un problema **NP-hard** (computazionalmente intrattabile)",
+        "Per reti moderne, trovare la soluzione garantita richiederebbe più tempo dell'età dell'universo"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Nonostante la complessità teorica, in pratica si adottano metodi approssimati per ottenere soluzioni sufficientemente buone in tempi ragionevoli."
+    },
+    {
+      "id": 22,
+      "timestamp_start": 667.32,
+      "timestamp_end": 709.32,
+      "title": "Discesa del Gradiente: Un Approccio Pratico",
+      "content": [
+        "Invece di cercare la perfezione, ci si avvicina **passo dopo passo** a una soluzione accettabile",
+        "Analogia: camminare in una catena montuosa con nebbia fitta, cercando il punto più basso",
+        "Si osserva la pendenza del terreno (gradiente) e si fa un piccolo passo nella direzione di massima discesa",
+        "Si ripete il processo **milioni di volte** per convergere verso un minimo"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il gradiente della funzione di loss indica la direzione in cui modificare i pesi per ridurre l'errore."
+    },
+    {
+      "id": 23,
+      "timestamp_start": 709.32,
+      "timestamp_end": 734.32,
+      "title": "Backpropagation: Calcolare il Gradiente in Modo Efficiente",
+      "content": [
+        "La direzione di massima pendenza corrisponde al **gradiente della funzione di loss**",
+        "Il gradiente indica come modificare ogni peso per ridurre l'errore",
+        "L'algoritmo **Backpropagation** calcola il gradiente in modo efficiente per milioni di pesi",
+        "La retropropagazione sfrutta la **regola della catena** per distribuire l'errore attraverso la rete"
+      ],
+      "math_formulas": [
+        "$$\\nabla_{\\vec{w}} L_S(\\vec{w})$$"
+      ],
+      "deep_dive": "La Backpropagation permette di aggiornare i pesi della rete in modo sistematico, partendo dall'errore finale e propagandolo all'indietro."
+    },
+    {
+      "id": 24,
+      "timestamp_start": 734.32,
+      "timestamp_end": 747.32,
+      "title": "L'Intuizione dietro la Backpropagation",
+      "content": [
+        "L'idea della Backpropagation è semplice ma potente",
+        "Si basa sull'applicazione della **regola della catena** del calcolo differenziale",
+        "Processo in due fasi:",
+        "- **Forward pass**: l'input attraversa la rete per produrre un output"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Nonostante il nome complesso, il meccanismo è elegante: prima si calcola l'output, poi si propaga l'errore all'indietro per correggere i pesi."
+    },
+    {
+      "id": 25,
+      "timestamp_start": 747.32,
+      "timestamp_end": 770.32,
+      "title": "Come Funziona la Backpropagation",
+      "content": [
+        "Dopo il forward pass, si calcola l'errore tra output e risultato atteso",
+        "L'errore viene propagato **all'indietro** dalla rete, dall'ultimo livello al primo",
+        "Ad ogni passo, si calcola il contributo di ogni peso all'errore totale",
+        "Ogni peso riceve la sua \"quota di colpa\" per l'errore complessivo"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Questo processo permette di distribuire la responsabilità dell'errore tra tutti i pesi, consentendo correzioni mirate."
+    },
+    {
+      "id": 26,
+      "timestamp_start": 770.32,
+      "timestamp_end": 792.32,
+      "title": "Ottimizzazione dei Pesi e Rischi",
+      "content": [
+        "Una volta noto il contributo all'errore, ogni peso sa come correggersi",
+        "L'obiettivo è migliorare le prestazioni della rete nella prossima iterazione",
+        "Rischio principale: **minimi locali**",
+        "La discesa del gradiente può rimanere intrappolata in soluzioni subottimali"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il meccanismo è potente, ma la complessità del paesaggio della funzione di perdita introduce sfide significative."
+    },
+    {
+      "id": 27,
+      "timestamp_start": 792.32,
+      "timestamp_end": 822.32,
+      "title": "Minimi Locali: Il Pericolo Nascosto",
+      "content": [
+        "Analogia: scendere una montagna nella nebbia",
+        "I minimi locali sono come piccole conche che sembrano il punto più basso",
+        "L'algoritmo può credere di aver raggiunto il minimo globale",
+        "In realtà, il vero minimo potrebbe essere oltre la prossima \"montagna\""
+      ],
+      "math_formulas": [],
+      "deep_dive": "La sfida è evitare di rimanere bloccati in soluzioni che non sono ottimali a livello globale."
+    },
+    {
+      "id": 28,
+      "timestamp_start": 822.32,
+      "timestamp_end": 841.32,
+      "title": "Tecniche per Superare i Minimi Locali",
+      "content": [
+        "Una soluzione comune è il **momentum**",
+        "L'idea: dare inerzia alla discesa del gradiente",
+        "Invece di un escursionista cauto, immagina una palla che rotola giù",
+        "La velocità accumulata aiuta a superare piccole buche e continuare la discesa"
+      ],
+      "math_formulas": [
+        "$$\\nabla \\vec{w}^{(t)} = \\mu \\nabla \\vec{w}^{(t-1)} - \\eta(\\vec{v_{t}} + \\lambda \\vec{w}^{(t)})$$"
+      ],
+      "deep_dive": "Il momentum introduce una componente di memoria nell'aggiornamento dei pesi, sfruttando la direzione precedente per evitare oscillazioni."
+    },
+    {
+      "id": 29,
+      "timestamp_start": 841.32,
+      "timestamp_end": 855.32,
+      "title": "Altri Problemi: Overfitting e Regolarizzazione",
+      "content": [
+        "Un altro rischio è l'**overfitting**",
+        "La rete memorizza i dati di addestramento ma non generalizza su nuovi dati",
+        "La **regolarizzazione** aiuta a prevenire questo problema",
+        "Aggiunge un termine di penalità alla funzione di perdita per limitare la complessità della rete"
+      ],
+      "math_formulas": [
+        "$$\\vec{w}^{*} = \\arg\\min_{\\vec{w} \\in \\mathbb{R}^{|E|}} \\left( L_{S}(\\vec{w}) + \\lambda |\\vec{w}|^{2} \\right)$$"
+      ],
+      "deep_dive": "La regolarizzazione favorisce soluzioni con pesi più piccoli, riducendo la complessità del modello e migliorando la generalizzazione."
+    },
+    {
+      "id": 30,
+      "timestamp_start": 855.32,
+      "timestamp_end": 861.32,
+      "title": "L'analogia con l'apprendimento umano",
+      "content": [
+        "Confronto tra reti neurali e uno studente che impara a memoria",
+        "Differenza tra memorizzazione e comprensione profonda",
+        "Limiti di un approccio puramente meccanico all'apprendimento"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore sottolinea come le reti neurali, pur essendo potenti, manchino di una vera comprensione concettuale, simile a uno studente che ripete senza capire."
+    },
+    {
+      "id": 31,
+      "timestamp_start": 861.32,
+      "timestamp_end": 880.32,
+      "title": "Dalla semplicità alla complessità",
+      "content": [
+        "Partenza da un semplice modello di neurone artificiale",
+        "Costruzione di architetture stratificate (feedforward)",
+        "Introduzione della backpropagation per l'apprendimento coordinato",
+        "Risultato: milioni di neuroni che collaborano per risolvere problemi complessi"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore enfatizza il contrasto tra la semplicità dei singoli componenti e la potenza emergente della rete nel suo complesso."
+    },
+    {
+      "id": 32,
+      "timestamp_start": 880.32,
+      "timestamp_end": 894.32,
+      "title": "Le reti feedforward come fondamenta",
+      "content": [
+        "Le reti feedforward sono solo l'inizio ('l'abbicci')",
+        "Principi base applicabili anche ad architetture più complesse",
+        "Esempi di applicazioni avanzate costruite sugli stessi principi"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Nonostante la loro semplicità, le reti feedforward sono il fondamento di tecnologie moderne come il riconoscimento immagini e la traduzione automatica."
+    },
+    {
+      "id": 33,
+      "timestamp_start": 894.32,
+      "timestamp_end": 909.32,
+      "title": "Architetture avanzate e principi comuni",
+      "content": [
+        "Reti convoluzionali per il riconoscimento di volti",
+        "Transformer per la traduzione automatica",
+        "Tutte basate sugli stessi principi fondamentali descritti",
+        "Il 'motore profondo' rimane invariato nonostante la complessità aggiunta"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore sottolinea come tecnologie all'avanguardia condividano la stessa base teorica delle reti feedforward."
+    },
+    {
+      "id": 34,
+      "timestamp_start": 909.32,
+      "timestamp_end": 944.32,
+      "title": "Riflessioni sull'essenza dell'apprendimento",
+      "content": [
+        "L'apprendimento descritto come processo matematico-meccanico",
+        "Metafora della discesa lungo una curva di errore",
+        "Limiti di questa visione puramente ottimizzativa",
+        "Possibili principi più profondi e robusti alla base della vera intelligenza"
+      ],
+      "math_formulas": [],
+      "deep_dive": "Il relatore invita a riflettere su aspetti meno efficienti ma potenzialmente più importanti dell'intelligenza, sia artificiale che biologica."
+    }
+  ]
+}
