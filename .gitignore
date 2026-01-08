@@ -39,7 +39,7 @@ yarn-error.log*
 dist/
 dist-ssr/
 *.local
-backend/storage/
+backend/storage
 
 # Environment Variables
 .env
