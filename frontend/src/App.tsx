@@ -33,6 +33,10 @@ function App() {
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [audioFile, setAudioFile] = useState<File | null>(null);
 
+    // Navigation State
+    const [playlist, setPlaylist] = useState<number[]>([]);
+    const [currentPackId, setCurrentPackId] = useState<number | null>(null);
+
     // Player State
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -51,6 +55,10 @@ function App() {
         setAudioFile(audio);
         setAudioUrl(URL.createObjectURL(audio));
         setView('player'); // Switch to player
+
+        // Reset playlist on new upload
+        setPlaylist([]);
+        setCurrentPackId(null);
     };
 
     // Scroll to active slide in sidebar
@@ -60,6 +68,64 @@ function App() {
         }
     }, [activeSlideId, view]);
 
+
+    // Helper to load a slidepack by ID
+    const loadSlidepack = async (id: number) => {
+        try {
+            const res = await fetch(`http://localhost:8000/slidepack/${id}`);
+            if (!res.ok) throw new Error("Failed to load slidepack");
+            const result = await res.json();
+
+            setData(result.presentation);
+
+            // Fetch audio blob to enable export later
+            const audioUrl = `http://localhost:8000${result.audio_url}`;
+            setAudioUrl(audioUrl);
+
+            const audioRes = await fetch(audioUrl);
+            const audioBlob = await audioRes.blob();
+            const audioName = result.audio_url.split('/').pop();
+            const file = new File([audioBlob], audioName, { type: audioBlob.type });
+            setAudioFile(file);
+
+            setCurrentPackId(id);
+            setIsPlaying(true); // Auto-play on navigation
+            setCurrentTime(0);  // Reset time
+            setView('player');
+
+            // Force scroll to top after a short delay to allow rendering
+            setTimeout(() => {
+                const firstSlide = result.presentation.slides[0];
+                if (firstSlide) {
+                    document.getElementById(`slide-thumb-${firstSlide.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Also dispatch a custom event or use ref if needed for SlideViewer
+                }
+            }, 100);
+        } catch (err) {
+            console.error(err);
+            alert("Impossibile aprire la lezione. Verifica che il backend sia attivo.");
+        }
+    };
+
+    // Forward/Backward Navigation
+    const handleNext = () => {
+        if (!currentPackId || playlist.length === 0) return;
+        const currentIndex = playlist.indexOf(currentPackId);
+        if (currentIndex !== -1 && currentIndex < playlist.length - 1) {
+            loadSlidepack(playlist[currentIndex + 1]);
+        }
+    };
+
+    const handlePrev = () => {
+        if (!currentPackId || playlist.length === 0) return;
+        const currentIndex = playlist.indexOf(currentPackId);
+        if (currentIndex > 0) {
+            loadSlidepack(playlist[currentIndex - 1]);
+        }
+    };
+
+    const hasNext = currentPackId && playlist.indexOf(currentPackId) < playlist.length - 1;
+    const hasPrev = currentPackId && playlist.indexOf(currentPackId) > 0;
 
 
     // Export complete slidepack (JSON + Audio)
@@ -139,29 +205,9 @@ function App() {
                 )}
 
                 {view === 'library' && (
-                    <Library onOpenSlidepack={async (id) => {
-                        try {
-                            const res = await fetch(`http://localhost:8000/slidepack/${id}`);
-                            if (!res.ok) throw new Error("Failed to load slidepack");
-                            const result = await res.json();
-
-                            setData(result.presentation);
-
-                            // Fetch audio blob to enable export later
-                            const audioUrl = `http://localhost:8000${result.audio_url}`;
-                            setAudioUrl(audioUrl);
-
-                            const audioRes = await fetch(audioUrl);
-                            const audioBlob = await audioRes.blob();
-                            const audioName = result.audio_url.split('/').pop();
-                            const file = new File([audioBlob], audioName, { type: audioBlob.type });
-                            setAudioFile(file);
-
-                            setView('player');
-                        } catch (err) {
-                            console.error(err);
-                            alert("Impossibile aprire la lezione. Verifica che il backend sia attivo.");
-                        }
+                    <Library onOpenSlidepack={(id, newPlaylist) => {
+                        if (newPlaylist) setPlaylist(newPlaylist);
+                        loadSlidepack(id);
                     }} />
                 )}
 
@@ -193,6 +239,8 @@ function App() {
                             onSeek={(t) => setCurrentTime(t)}
                             onTimeUpdate={(t) => setCurrentTime(t)}
                             onDurationChange={(d) => setDuration(d)}
+                            onNext={hasNext ? handleNext : undefined}
+                            onPrev={hasPrev ? handlePrev : undefined}
                         />
                     </div>
                 )}
@@ -214,4 +262,3 @@ function App() {
 }
 
 export default App;
-

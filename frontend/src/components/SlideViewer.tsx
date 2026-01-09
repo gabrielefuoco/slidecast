@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import 'katex/dist/katex.min.css';
-import { InlineMath, BlockMath as KaTeXBlockMath } from 'react-katex';
+import katex from 'katex';
 import { cn } from '../lib/utils';
 
 // Helper to clean LaTeX formula - remove all delimiters
@@ -11,37 +11,155 @@ const cleanFormula = (formula: string): string => {
         .trim();
 };
 
+// Custom Katex Renderer Component
+const KatexRenderer: React.FC<{ math: string; block?: boolean; onError?: () => void }> = ({ math, block = false, onError }) => {
+    const containerRef = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+        if (containerRef.current) {
+            const renderMath = (formula: string, throwError: boolean) => {
+                katex.render(formula, containerRef.current!, {
+                    displayMode: block,
+                    throwOnError: throwError,
+                    errorColor: '#ef4444',
+                });
+            };
+
+            try {
+                // First try rendering normally, but THROW on error so we can catch and fix
+                renderMath(math, true);
+            } catch (error) {
+                // Common fixes for LLM-generated LaTeX
+                let fixedMath = math
+                    .replace(/\\\\}/g, '}')     // Fix double-escaped closing brace
+                    .replace(/\\\\{/g, '{')     // Fix double-escaped opening brace
+                    .replace(/\\\\/g, '\\');    // Fix double backslashes for commands
+
+                try {
+                    if (fixedMath !== math) {
+                        try {
+                            renderMath(fixedMath, true);
+                            return; // Success with fix
+                        } catch (e) { /* ignore inner error */ }
+                    }
+
+                    // If we are here, fix didn't work.
+                    if (onError) {
+                        onError(); // Notify parent to fallback
+                    } else {
+                        // Fallback to displaying with error verification (letting KaTeX show the red text)
+                        renderMath(math, false);
+                    }
+                } catch (retryError) {
+                    if (onError) onError();
+                    else renderMath(math, false);
+                }
+            }
+        }
+    }, [math, block, onError]);
+
+    return <span ref={containerRef} />;
+};
+
+// Check if string looks like it *needs* math mode
+const isLikelyMath = (formula: string): boolean => {
+    // If it has no spaces, it's likely a variable or number (x, 123) -> Math
+    if (!formula.includes(' ')) return true;
+
+    // If it has spaces, it might be a sentence wrapped in dollars.
+    // Check for specific math indicators.
+    // Indication of math: backslashes (commands), super/subscripts, relations, groupings
+    const mathIndicators = ['\\', '^', '_', '=', '<', '>', '{', '}'];
+    return mathIndicators.some(char => formula.includes(char));
+};
+
 // Helper to render mixed content (text + inline math + markdown formatting)
 const renderContent = (text: string): React.ReactNode => {
-    // First, handle math formulas
-    const mathPattern = /(\$\$[^\$]+\$\$|\$[^\$]+\$)/g;
-    const parts = text.split(mathPattern);
+    const placeholders: string[] = [];
 
-    return parts.map((part, i) => {
-        // Math formulas
-        if (part.startsWith('$$') && part.endsWith('$$')) {
-            return <InlineMath key={i} math={cleanFormula(part)} />;
+    // 1. Extract Math and replace with placeholders to protect them from Markdown parsing
+    // We checks if it's "Likely Math" immediately. If not, we treat it as text.
+    let cleanText = text.replace(/(\$\$[^\$]+\$\$|\$[^\$]+\$)/g, (match) => {
+        const inner = cleanFormula(match);
+        if (isLikelyMath(inner)) {
+            placeholders.push(match);
+            return `__MATH_${placeholders.length - 1}__`;
+        } else {
+            return inner; // Treat as text, strip dollars
         }
-        if (part.startsWith('$') && part.endsWith('$')) {
-            return <InlineMath key={i} math={cleanFormula(part)} />;
-        }
-
-        // For non-math parts, handle bold and italic
-        // Replace **text** with bold and *text* with italic
-        const formattedPart = part
-            .split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
-            .map((segment, j) => {
-                if (segment.startsWith('**') && segment.endsWith('**')) {
-                    return <strong key={`${i}-${j}`}>{segment.slice(2, -2)}</strong>;
-                }
-                if (segment.startsWith('*') && segment.endsWith('*')) {
-                    return <em key={`${i}-${j}`}>{segment.slice(1, -1)}</em>;
-                }
-                return segment;
-            });
-
-        return <span key={i}>{formattedPart}</span>;
     });
+
+    // Helper to restore math components in a string
+    const restoreMath = (str: string, keyPrefix: string) => {
+        if (!str.includes('__MATH_')) return str;
+
+        const parts = str.split(/(__MATH_\d+__)/g);
+        return parts.map((part, i) => {
+            const match = part.match(/__MATH_(\d+)__/);
+            if (match) {
+                const index = parseInt(match[1]);
+                const formula = placeholders[index];
+                const isBlock = formula.startsWith('$$');
+                return <KatexRenderer key={`${keyPrefix}-${i}`} math={cleanFormula(formula)} block={isBlock} />;
+            }
+            return part;
+        });
+    };
+
+    // 2. Process Bold (**text**)
+    const boldParts = cleanText.split(/(\*\*[^*]+\*\*)/g);
+
+    return boldParts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            const content = part.slice(2, -2);
+            return <strong key={`b-${i}`}>{restoreMath(content, `b-${i}`)}</strong>;
+        }
+
+        // 3. Process Italic (*text*) on non-bold parts
+        // Note: This regex is simple and might match * inside math if we hadn't protected it.
+        const italicParts = part.split(/(\*[^*]+\*)/g);
+        return (
+            <span key={`s-${i}`}>
+                {italicParts.map((subPart, j) => {
+                    if (subPart.startsWith('*') && subPart.endsWith('*')) {
+                        const content = subPart.slice(1, -1);
+                        return <em key={`i-${i}-${j}`}>{restoreMath(content, `i-${i}-${j}`)}</em>;
+                    }
+                    return <span key={`t-${i}-${j}`}>{restoreMath(subPart, `t-${i}-${j}`)}</span>;
+                })}
+            </span>
+        );
+    });
+};
+
+// Smart Component that tries to guess the best way to render a formula block
+const SmartFormula: React.FC<{ formula: string }> = ({ formula }) => {
+    const [renderError, setRenderError] = useState(false);
+
+    // Reset error if formula changes
+    useEffect(() => {
+        setRenderError(false);
+    }, [formula]);
+
+    if (renderError) {
+        // Fallback: try to render as text with potential mixed content
+        // We use the same renderContent logic to handle any markdown/math mix in the fallback
+        let content = formula;
+        const dollarCount = (content.match(/\$/g) || []).length;
+        if (dollarCount % 2 !== 0) {
+            if (!content.trim().startsWith('$')) content = '$' + content;
+            else content = content + '$';
+        }
+        return <div className="text-center italic">{renderContent(content)}</div>;
+    }
+
+    return (
+        <KatexRenderer
+            math={cleanFormula(formula)}
+            block={true}
+            onError={() => setRenderError(true)}
+        />
+    );
 };
 
 interface Slide {
@@ -79,21 +197,59 @@ const SlideCard: React.FC<{
             )}
         >
             {/* Title */}
-            < h2 className="text-lg lg:text-xl font-bold text-neutral-800 mb-3" >
+            <h2 className="text-lg lg:text-xl font-bold text-neutral-800 mb-3">
                 {slide.title}
-            </h2 >
+            </h2>
 
             {/* Content */}
-            < ul className="space-y-2 mb-4" >
+            <ul className="space-y-2 mb-4">
                 {
-                    slide.content.map((point, index) => (
-                        <li key={index} className="flex items-start gap-3 text-base lg:text-lg leading-relaxed text-neutral-700">
-                            <span className="w-2 h-2 mt-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex-shrink-0" />
-                            <span>{renderContent(point)}</span>
-                        </li>
-                    ))
+                    slide.content.map((point, index) => {
+                        // Check if it's a sub-item (starts with -)
+                        const isSubItem = point.trim().startsWith('-');
+
+                        // Check if it's a numbered item (starts with "1.", "2.", etc.)
+                        const numberMatch = point.trim().match(/^(\d+)\.\s+(.*)/);
+                        const isNumbered = !!numberMatch;
+
+                        let cleanPoint = point;
+                        let itemNumber = "";
+
+                        if (isSubItem) {
+                            cleanPoint = point.trim().substring(1).trim();
+                        } else if (isNumbered && numberMatch) {
+                            itemNumber = numberMatch[1];
+                            cleanPoint = numberMatch[2];
+                        }
+
+                        return (
+                            <li
+                                key={index}
+                                className={cn(
+                                    "flex items-start gap-3 text-base lg:text-lg leading-relaxed text-neutral-700",
+                                    isSubItem && "ml-8" // Add indentation for sub-items
+                                )}
+                            >
+                                {isNumbered ? (
+                                    <span className="mt-0.5 min-w-[1.5rem] font-bold text-blue-600 flex justify-end px-1 select-none">
+                                        {itemNumber}.
+                                    </span>
+                                ) : (
+                                    <span
+                                        className={cn(
+                                            "mt-2 rounded-full flex-shrink-0",
+                                            isSubItem
+                                                ? "w-1.5 h-1.5 bg-neutral-400" // Smaller, gray dot for sub-items
+                                                : "w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500" // Normal dot
+                                        )}
+                                    />
+                                )}
+                                <span>{renderContent(cleanPoint)}</span>
+                            </li>
+                        );
+                    })
                 }
-            </ul >
+            </ul>
 
             {/* Formulas */}
             {
@@ -101,8 +257,8 @@ const SlideCard: React.FC<{
                     <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 mb-3">
                         <div className="flex flex-wrap justify-center gap-4">
                             {slide.math_formulas.map((formula, i) => (
-                                <div key={i} className="text-lg lg:text-xl overflow-x-auto">
-                                    <KaTeXBlockMath math={cleanFormula(formula)} />
+                                <div key={i} className="text-lg lg:text-xl overflow-x-auto w-full flex justify-center">
+                                    <SmartFormula formula={formula} />
                                 </div>
                             ))}
                         </div>
@@ -115,12 +271,12 @@ const SlideCard: React.FC<{
                 slide.deep_dive && (
                     <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100">
                         <p className="text-neutral-600 text-sm leading-relaxed italic">
-                            ✨ {slide.deep_dive}
+                            ✨ {renderContent(slide.deep_dive)}
                         </p>
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 };
 
@@ -207,5 +363,3 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({ slides, currentSlideId
         </div>
     );
 };
-
-

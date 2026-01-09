@@ -11,6 +11,8 @@ interface PlayerProps {
     onSeek: (time: number) => void;
     onTimeUpdate: (time: number) => void;
     onDurationChange: (duration: number) => void;
+    onNext?: () => void;
+    onPrev?: () => void;
 }
 
 export const Player: React.FC<PlayerProps> = ({
@@ -21,7 +23,9 @@ export const Player: React.FC<PlayerProps> = ({
     onPlayPause,
     onSeek,
     onTimeUpdate,
-    onDurationChange
+    onDurationChange,
+    onNext,
+    onPrev
 }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const progressBarRef = useRef<HTMLDivElement>(null);
@@ -44,12 +48,18 @@ export const Player: React.FC<PlayerProps> = ({
     useEffect(() => {
         if (audioRef.current) {
             if (isPlaying) {
-                audioRef.current.play();
+                audioRef.current.playbackRate = playbackRate;
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("Play interrupted or failed", error);
+                    });
+                }
             } else {
                 audioRef.current.pause();
             }
         }
-    }, [isPlaying]);
+    }, [isPlaying, audioUrl]); // Run when isPlaying changes OR audioUrl changes
 
     useEffect(() => {
         // Sync external seek to internal audio
@@ -98,7 +108,11 @@ export const Player: React.FC<PlayerProps> = ({
             <div className="max-w-6xl mx-auto flex items-center gap-8">
                 {/* Controls */}
                 <div className="flex items-center gap-4">
-                    <button className="text-neutral-400 hover:text-white transition">
+                    <button
+                        onClick={onPrev}
+                        className="text-neutral-400 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={!onPrev}
+                    >
                         <SkipBack className="w-5 h-5" />
                     </button>
                     <button
@@ -107,7 +121,11 @@ export const Player: React.FC<PlayerProps> = ({
                     >
                         {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
                     </button>
-                    <button className="text-neutral-400 hover:text-white transition">
+                    <button
+                        onClick={onNext}
+                        className="text-neutral-400 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={!onNext}
+                    >
                         <SkipForward className="w-5 h-5" />
                     </button>
                 </div>

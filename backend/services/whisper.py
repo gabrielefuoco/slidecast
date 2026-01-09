@@ -1,28 +1,25 @@
 from faster_whisper import WhisperModel
-import torch
+# import torch # Removing heavy dependency just for device check
 
 class WhisperService:
     def __init__(self):
-        cuda_available = torch.cuda.is_available()
-        print(f"CUDA available: {cuda_available}")
-
-        if cuda_available:
-            print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
-            self.device = "cuda"
-            compute_type = "float16"   # 🔥 super veloce su GPU
-        else:
-            print("WARNING: CUDA not available, using CPU")
-            self.device = "cpu"
-            compute_type = "int8"      # 🔥 veloce su CPU
-
-        print(f"Using device: {self.device}")
+        # Naive check or just try CUDA
+        # faster-whisper will throw if we try cuda and it's not there, 
+        # but we can try-except or just default to auto if supported?
+        # Actually simplest is to try "cuda" and fallback.
+        
+        self.device = "cuda"
+        self.compute_type = "float16"
+        
         print("Loading faster-whisper model (base)...")
-
-        self.model = WhisperModel(
-            "tiny",
-            device=self.device,
-            compute_type=compute_type
-        )
+        try:
+            self.model = WhisperModel("tiny", device=self.device, compute_type=self.compute_type)
+            print(f"Using device: {self.device} (CUDA)")
+        except Exception as e:
+            print(f"CUDA failed ({e}), falling back to CPU")
+            self.device = "cpu"
+            self.compute_type = "int8"
+            self.model = WhisperModel("tiny", device=self.device, compute_type=self.compute_type)
 
         print("Model loaded successfully")
 

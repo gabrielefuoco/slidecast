@@ -247,7 +247,7 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
             });
 
             try {
-                const res = await fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData });
+                const res = await fetch('/upload-batch/', { method: 'POST', body: formData });
                 if (res.ok) {
                     newProcessedPairs.forEach(p => updateStatus(p.id, 'done'));
                 } else {
@@ -266,7 +266,7 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
             formData.append('slidepack', pack.file);
 
             try {
-                const res = await fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData });
+                const res = await fetch('/import-slidepack', { method: 'POST', body: formData });
                 if (res.ok) {
                     updateStatus(pack.id, 'done');
                 } else {

@@ -673,6 +673,7 @@ class ReorderRequest(BaseModel):
 
 @app.post("/courses/{course_id}/reorder")
 def reorder_course(course_id: int, request: ReorderRequest):
+    logger.info(f"Reordering course {course_id} with packs: {request.pack_ids}")
     db = SessionLocal()
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
@@ -735,9 +736,26 @@ def rename_slidepack(pack_id: int, request: RenameRequest):
     
     pack.title = request.title
     
-    # Also update the internal JSON if it exists? 
-    # Good practice to keep them in sync, but maybe expansive. 
-    # Let's just update DB for now, user sees DB title.
+    # Sync with slides.json on disk so Player sees the new title
+    try:
+        if pack.file_path:
+            json_path = os.path.join(pack.file_path, "slides.json")
+            if os.path.exists(json_path):
+                import json
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    
+                # Update title in metadata
+                if "metadata" in data:
+                    data["metadata"]["title"] = request.title
+                else:
+                    data["metadata"] = {"title": request.title, "duration": 0}
+                    
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Failed to sync title to slides.json: {e}")
+        # Non-blocking error, but good to log
     
     db.commit()
     db.close()
@@ -927,3 +945,45 @@ def get_pending_jobs():
     
     db.close()
     return {"jobs": result}
+
+
+# --- FRONTEND SERVING (SPA) ---
+# Must be at the end to avoid capturing API routes
+
+# Determine path to client build
+# If running frozen (PyInstaller), look in sys._MEIPASS/client or adjacent
+import sys
+# Base dir handling for frozen apps
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CLIENT_DIR = os.path.join(BASE_DIR, "client")
+
+# If client dir exists, mount assets and serve SPA
+if os.path.exists(CLIENT_DIR):
+    logger.info(f"Serving frontend from {CLIENT_DIR}")
+    
+    # Mount assets specifically for performance
+    assets_path = os.path.join(CLIENT_DIR, "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+
+    # Catch-all for SPA
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # 1. Check if file exists in client root (e.g. vite.svg, favicon.ico)
+        file_path = os.path.join(CLIENT_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+            
+        # 2. Fallback to index.html for everything else (routes)
+        index_path = os.path.join(CLIENT_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        
+        return HTTPException(status_code=404, detail="Frontend not found")
+else:
+    logger.warning("Client directory not found. Frontend will not be served.")
+

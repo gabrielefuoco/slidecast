@@ -25,8 +25,9 @@ interface Course {
 }
 
 interface LibraryProps {
-    onOpenSlidepack?: (id: number) => void;
+    onOpenSlidepack?: (id: number, playlist?: number[]) => void;
 }
+
 
 // Modal Component for Merge
 const MergeModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean, onClose: () => void, onConfirm: (title: string) => void }) => {
@@ -505,7 +506,12 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
                                                 onDrop={(e) => handleCardDrop(e, pack)}
                                                 onClick={() => {
                                                     if (isSelectionMode) toggleSelection(pack.id);
-                                                    else if (pack.status === 'completed' && onOpenSlidepack) onOpenSlidepack(pack.id);
+                                                    else if (pack.status === 'completed' && onOpenSlidepack) {
+                                                        const playlist = course.slidepacks
+                                                            .filter(p => p.status === 'completed')
+                                                            .map(p => p.id);
+                                                        onOpenSlidepack(pack.id, playlist);
+                                                    }
                                                 }}
                                             >
                                                 {/* Background / Preview Placeholder */}
