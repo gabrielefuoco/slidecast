@@ -45,62 +45,188 @@ sync_service = SyncService()
 
 
 @app.post("/import-slidepack")
-async def import_slidepack(slidepack: UploadFile = File(...)):
+def import_slidepack(slidepack: UploadFile = File(...)):
     """
-    Importa un file .slidepack (ZIP contenente slides.json + audio).
-    Restituisce la presentazione e l'URL dell'audio.
+    Importa un file .slidepack (ZIP) o un Export Corso (ZIP con cartelle).
+    - Se contiene multipli slides.json -> Importa come Corso.
+    - Se contiene un solo slides.json -> Importa come singola presentazione (gestisce nesting).
     """
     try:
-        logger.info(f"Importing slidepack: {slidepack.filename}")
+        logger.info(f"Importing zip: {slidepack.filename}")
         
-        # Salva lo slidepack temporaneamente
+        # Salva lo zip temporaneamente
         os.makedirs("temp", exist_ok=True)
-        pack_id = str(uuid.uuid4())[:8]
-        pack_path = f"temp/{pack_id}.slidepack"
+        zip_id = str(uuid.uuid4())[:8]
+        zip_path = f"temp/{zip_id}.zip"
         
-        with open(pack_path, "wb") as buffer:
+        with open(zip_path, "wb") as buffer:
             shutil.copyfileobj(slidepack.file, buffer)
         
-        # Estrai il contenuto
-        with zipfile.ZipFile(pack_path, 'r') as zf:
+        presentation_to_return = None
+        audio_url_to_return = None
+        
+        with zipfile.ZipFile(zip_path, 'r') as zf:
             file_list = zf.namelist()
-            logger.info(f"Slidepack contents: {file_list}")
+            # Trova tutti i slides.json
+            slides_files = [f for f in file_list if f.endswith('slides.json') and not f.startswith('__MACOSX')]
             
-            # Trova slides.json
-            if 'slides.json' not in file_list:
-                raise HTTPException(status_code=400, detail="slides.json not found in slidepack")
+            if not slides_files:
+                raise HTTPException(status_code=400, detail="No slides.json found in archive")
+
+            db = SessionLocal()
             
-            # Leggi e parse slides.json
-            slides_content = zf.read('slides.json').decode('utf-8')
-            presentation = sync_service.load_json_from_content(slides_content)
-            
-            # Trova e estrai l'audio
-            audio_file = None
-            for f in file_list:
-                if f.startswith('audio.'):
-                    audio_file = f
-                    break
-            
-            if not audio_file:
-                raise HTTPException(status_code=400, detail="Audio file not found in slidepack")
-            
-            # Estrai l'audio in una cartella servibile
-            audio_ext = audio_file.split('.')[-1]
-            audio_filename = f"{pack_id}.{audio_ext}"
-            audio_dest = f"temp/audio/{audio_filename}"
-            
-            with zf.open(audio_file) as src, open(audio_dest, 'wb') as dst:
-                dst.write(src.read())
-            
-            logger.info(f"Extracted audio to: {audio_dest}")
+            # --- CASO BULK / CORSO ---
+            if len(slides_files) > 1:
+                logger.info(f"Bulk import detected: {len(slides_files)} packs found.")
+                
+                # Crea nuovo corso
+                course_title = os.path.splitext(slidepack.filename)[0]
+                course = Course(title=course_title)
+                db.add(course)
+                db.commit()
+                db.refresh(course)
+                logger.info(f"Created course: {course.title} (ID: {course.id})")
+                
+                # Importa ogni pack
+                for i, slides_path in enumerate(slides_files):
+                    try:
+                        # slides_path es: "Cartella/Sottocartella/slides.json"
+                        # root_dir es: "Cartella/Sottocartella/"
+                        root_dir = os.path.dirname(slides_path)
+                        
+                        # Leggi JSON
+                        slides_content = zf.read(slides_path).decode('utf-8')
+                        presentation = sync_service.load_json_from_content(slides_content)
+                        
+                        # Crea SlidePack nel DB
+                        pack = SlidePack(
+                            title=presentation.metadata.title, 
+                            status="completed", 
+                            course_id=course.id,
+                            order_index=i
+                        )
+                        db.add(pack)
+                        db.commit()
+                        db.refresh(pack)
+                        
+                        # Prepara destinazione
+                        output_dir = f"storage/courses/{course.id}/{pack.id}"
+                        os.makedirs(output_dir, exist_ok=True)
+                        pack.file_path = output_dir
+                        
+                        # Salva slides.json
+                        with open(f"{output_dir}/slides.json", "w", encoding='utf-8') as f:
+                            f.write(slides_content)
+                            
+                        # Trova l'audio nella stessa cartella di slides.json
+                        audio_file_entry = None
+                        for f in file_list:
+                            # Deve iniziare con la root_dir e finire con estensione audio
+                            # Esempio check: f è "Cartella/audio.mp3" e root è "Cartella"
+                            if os.path.dirname(f) == root_dir and f.split('/')[-1].startswith('audio.'):
+                                audio_file_entry = f
+                                break
+                        
+                        if audio_file_entry:
+                            audio_ext = audio_file_entry.split('.')[-1]
+                            final_audio_path = f"{output_dir}/audio.{audio_ext}"
+                            with zf.open(audio_file_entry) as src, open(final_audio_path, 'wb') as dst:
+                                dst.write(src.read())
+                        else:
+                            logger.warning(f"Audio not found for pack {slides_path}")
+                        
+                        db.commit()
+                        
+                        # Imposta il primo come ritorno (preview)
+                        if i == 0:
+                            presentation_to_return = presentation
+                            if audio_file_entry:
+                                # URL per il frontend
+                                audio_filename = f"audio.{audio_ext}"
+                                presentation_to_return = presentation
+                                audio_url_to_return = f"/storage/courses/{course.id}/{pack.id}/{audio_filename}"
+
+                    except Exception as e:
+                        logger.error(f"Failed to import pack {slides_path}: {e}")
+                        continue
+
+            # --- CASO SINGOLO (anche nested) ---
+            else:
+                slides_path = slides_files[0]
+                root_dir = os.path.dirname(slides_path)
+                logger.info(f"Single import detected: {slides_path} (root: {root_dir})")
+                
+                # Create Course & Pack for persistence
+                # Use filename as course title or default
+                course_title = os.path.splitext(slidepack.filename)[0]
+                course = Course(title=course_title)
+                db.add(course)
+                db.commit()
+                db.refresh(course)
+                
+                # Leggi JSON
+                slides_content = zf.read(slides_path).decode('utf-8')
+                presentation = sync_service.load_json_from_content(slides_content)
+                presentation_to_return = presentation
+                
+                # Create Pack
+                pack = SlidePack(
+                    title=presentation.metadata.title,
+                    status="completed",
+                    course_id=course.id,
+                    order_index=0
+                )
+                db.add(pack)
+                db.commit()
+                db.refresh(pack)
+                
+                # Prepare destination
+                output_dir = f"storage/courses/{course.id}/{pack.id}"
+                os.makedirs(output_dir, exist_ok=True)
+                pack.file_path = output_dir
+                
+                # Save slides.json
+                with open(f"{output_dir}/slides.json", "w", encoding='utf-8') as f:
+                    f.write(slides_content)
+                
+                # Trova Audio
+                audio_file_entry = None
+                for f in file_list:
+                    if os.path.dirname(f) == root_dir and f.split('/')[-1].startswith('audio.'):
+                        audio_file_entry = f
+                        break
+                
+                if not audio_file_entry:
+                    raise HTTPException(status_code=400, detail="Audio file not found in archive")
+
+                # Extract audio to storage
+                audio_ext = audio_file_entry.split('.')[-1]
+                final_audio_path = f"{output_dir}/audio.{audio_ext}"
+                with zf.open(audio_file_entry) as src, open(final_audio_path, 'wb') as dst:
+                    dst.write(src.read())
+                
+                db.commit()
+                
+                # Return Persistent URL
+                audio_filename = f"audio.{audio_ext}"
+                audio_url_to_return = f"/storage/courses/{course.id}/{pack.id}/{audio_filename}"
+
+            db.close()
         
-        # Cleanup pack file
-        os.remove(pack_path)
+        # Cleanup zip
+        os.remove(zip_path)
         
-        # Restituisci presentazione + URL audio
+        if not presentation_to_return:
+             raise HTTPException(status_code=500, detail="Import failed: no valid presentations found")
+             
+        # Se era un bulk import ma audio_url_to_return è None (magari il primo è fallito audio?), gestiamo
+        if not audio_url_to_return:
+             # Fallback vuoto o errore?
+             pass 
+
         return {
-            "presentation": presentation,
-            "audio_url": f"/audio/{audio_filename}"
+            "presentation": presentation_to_return,
+            "audio_url": audio_url_to_return
         }
         
     except zipfile.BadZipFile:
@@ -214,7 +340,26 @@ from pydantic import BaseModel
 from datetime import datetime
 
 # Init DB on module load
+# Init DB on module load
 init_db()
+
+# Migration hack: Check if order_index exists, if not add it
+def run_migrations():
+    try:
+        from sqlalchemy import text
+        db = SessionLocal()
+        # Check if column exists (naive check)
+        try:
+            db.execute(text("SELECT order_index FROM slidepacks LIMIT 1"))
+        except Exception:
+            logger.info("Migrating: Adding order_index to slidepacks")
+            db.execute(text("ALTER TABLE slidepacks ADD COLUMN order_index INTEGER DEFAULT 0"))
+            db.commit()
+        db.close()
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+
+run_migrations()
 
 async def process_batch_queue(files_data: List[dict], course_id: int):
     """
@@ -290,7 +435,7 @@ async def process_batch_queue(files_data: List[dict], course_id: int):
 
 
 @app.post("/upload-batch/")
-async def upload_batch(
+def upload_batch(
     background_tasks: BackgroundTasks,
     audio_files: List[UploadFile] = File(...),
     md_files: List[UploadFile] = File(...),
@@ -367,8 +512,13 @@ def list_courses():
                 "id": p.id,
                 "title": p.title,
                 "status": p.status,
-                "created_at": p.created_at
+                "created_at": p.created_at,
+                "order_index": p.order_index,
+                "course_id": p.course_id
             })
+        # Sort packs by order_index, then created_at
+        packs.sort(key=lambda x: (x.get('order_index', 0), x.get('created_at', '')))
+        
         result.append({
             "id": c.id,
             "title": c.title,
@@ -398,14 +548,22 @@ def export_course(course_id: int):
     for pack in course.slidepacks:
         if pack.status == 'completed' and pack.file_path and os.path.exists(pack.file_path):
             # Copia la cartella del singolo slidepack dentro la cartella export
-            # Struttura: Export/Lezione1/, Export/Lezione2/
-            dest_name = pack.title.replace(" ", "_").replace("/", "-") # Sanitize basics
+            # Struttura: Export/Lezione_1_ID/, Export/Lezione_2_ID/
+            # Sanitize filename: remove invalid chars
+            safe_title = "".join(c for c in pack.title if c.isalnum() or c in (' ', '-', '_')).strip()
+            safe_title = safe_title.replace(" ", "_")
+            
+            dest_name = f"{safe_title}_{pack.id}" 
             shutil.copytree(pack.file_path, f"{base_dir}/{dest_name}")
             has_content = True
 
     if not has_content:
         db.close()
-        return {"error": "No completed slidepacks to export"}
+        # Clean up empty dir
+        shutil.rmtree(base_dir)
+        # Instead of error, return empty zip maybe? Or just error is fine if UI handles it.
+        # User expects something. Let's error clearly.
+        raise HTTPException(status_code=400, detail="No completed slidepacks to export in this course.")
 
     # Zippa tutto
     zip_filename = f"course_{course_id}"
@@ -415,7 +573,9 @@ def export_course(course_id: int):
     shutil.rmtree(base_dir)
     db.close()
     
-    return FileResponse(f"temp/{zip_filename}.zip", filename=f"{course.title}.zip")
+    # Sanitize course title for filename
+    safe_course_title = "".join(c for c in course.title if c.isalnum() or c in (' ', '-', '_')).strip()
+    return FileResponse(f"temp/{zip_filename}.zip", filename=f"{safe_course_title}.zip")
 
 
 # New: Mount storage for serving persisted files
@@ -505,7 +665,29 @@ def rename_course(course_id: int, request: RenameRequest):
     db.commit()
     db.refresh(course)
     db.close()
+    db.close()
     return {"message": "Course renamed", "course": course}
+
+class ReorderRequest(BaseModel):
+    pack_ids: List[int]
+
+@app.post("/courses/{course_id}/reorder")
+def reorder_course(course_id: int, request: ReorderRequest):
+    db = SessionLocal()
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        db.close()
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Update order indices
+    for index, pack_id in enumerate(request.pack_ids):
+        pack = db.query(SlidePack).filter(SlidePack.id == pack_id, SlidePack.course_id == course_id).first()
+        if pack:
+            pack.order_index = index
+            
+    db.commit()
+    db.close()
+    return {"message": "Order updated"}
 
 @app.delete("/courses/{course_id}")
 def delete_course(course_id: int):

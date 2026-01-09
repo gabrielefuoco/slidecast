@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FileAudio, FileText, Package, Upload, ArrowRight, Loader2, Link as LinkIcon, Trash2, AlertCircle, CheckCircle, Ban } from 'lucide-react';
+import { FileAudio, FileText, Package, Upload, ArrowRight, Loader2, Link as LinkIcon, Trash2, AlertCircle, CheckCircle, Ban, HISTORY } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Types
@@ -38,6 +38,15 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
     const [pairs, setPairs] = useState<FilePair[]>([]);
     const [orphans, setOrphans] = useState<OrphanFile[]>([]);
     const [slidepacks, setSlidepacks] = useState<SlidepackItem[]>([]);
+
+    // Processed Queue (Items that have been sent)
+    const [processedItems, setProcessedItems] = useState<{
+        id: string,
+        name: string,
+        type: 'pair' | 'pack',
+        status: 'uploading' | 'done' | 'error',
+        error?: string
+    }[]>([]);
 
     // Global processing state (is dispatching?)
     const [isDispatching, setIsDispatching] = useState(false);
@@ -199,23 +208,37 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
         const pairsToProcess = pairs.filter(p => p.status === 'idle' || p.status === 'error');
         const packsToProcess = slidepacks.filter(p => p.status === 'idle' || p.status === 'error');
 
-        // Mark them as waiting/uploading
-        // No longer marking as waiting/uploading in UI, as we clear immediately.
-        // setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'waiting' } : p));
-        // setSlidepacks(prev => prev.map(s => packsToProcess.find(ptp => ptp.id === s.id) ? { ...s, status: 'waiting' } : s));
+        // Initial setup in Processed Queue
+        const newProcessedPairs = pairsToProcess.map(p => ({
+            id: p.id,
+            name: p.audio.name,
+            type: 'pair' as const,
+            status: 'uploading' as const,
+            error: undefined as string | undefined
+        }));
+
+        const newProcessedPacks = packsToProcess.map(p => ({
+            id: p.id,
+            name: p.file.name,
+            type: 'pack' as const,
+            status: 'uploading' as const,
+            error: undefined as string | undefined
+        }));
+
+        setProcessedItems(prev => [...newProcessedPairs, ...newProcessedPacks, ...prev]);
+
+        // Helpers to update status
+        const updateStatus = (id: string, status: 'done' | 'error', error?: string) => {
+            setProcessedItems(prev => prev.map(item =>
+                item.id === id ? { ...item, status, error } : item
+            ));
+        };
 
         // EXECUTION - 1. Handle Pairs (Batch)
+        // Note: Batch API returns immediately with a background task, so we mark as "done" (accepted)
         if (pairsToProcess.length > 0) {
-            // Update UI to uploading (No longer needed, clearing UI immediately)
-            // setPairs(prev => prev.map(p => pairsToProcess.find(ptp => ptp.id === p.id) ? { ...p, status: 'uploading' } : p));
-
-            // Implementation: We'll stick to existing APIs for now but clear UI optimistically.
-            // If it's a batch upload, it returns immediately anyway.
-
-            // REFACTOR: Use /upload-batch for single pairs too.
             const formData = new FormData();
             pairsToProcess.forEach(pair => {
-                // We need to use filenames that match for the backend logic
                 const cleanName = pair.audio.name.replace(/\.[^/.]+$/, "");
                 const extAudio = pair.audio.name.split('.').pop();
                 const extMd = pair.md.name.split('.').pop();
@@ -223,35 +246,45 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
                 formData.append('md_files', new File([pair.md], `${cleanName}.${extMd}`, { type: pair.md.type }));
             });
 
-            // Use batch endpoint
-            fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData })
-                .catch(err => console.error("Upload failed in background", err));
+            try {
+                const res = await fetch('http://localhost:8000/upload-batch/', { method: 'POST', body: formData });
+                if (res.ok) {
+                    newProcessedPairs.forEach(p => updateStatus(p.id, 'done'));
+                } else {
+                    const err = await res.text();
+                    newProcessedPairs.forEach(p => updateStatus(p.id, 'error', err));
+                }
+            } catch (err) {
+                console.error("Batch upload failed", err);
+                newProcessedPairs.forEach(p => updateStatus(p.id, 'error', 'Network error'));
+            }
         }
 
-        // EXECUTION - 2. Handle Slidepacks (Fire & Forget)
-        // /import-slidepack is blocking/sync.
-        // We iterate and send.
-        packsToProcess.forEach(async (pack) => {
-            // setSlidepacks(prev => prev.map(s => s.id === pack.id ? { ...s, status: 'uploading' } : s)); // No longer needed
+        // EXECUTION - 2. Handle Slidepacks (Parallel)
+        await Promise.all(packsToProcess.map(async (pack) => {
             const formData = new FormData();
             formData.append('slidepack', pack.file);
-            // We just trigger it. It might take a moment to upload, but we clear UI.
-            fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData })
-                .catch(err => console.error("Slidepack import failed", err));
-        });
 
-        // FIRE & FORGET: Clear everything immediately
-        setPairs([]);
-        setOrphans([]);
-        setSlidepacks([]);
+            try {
+                const res = await fetch('http://localhost:8000/import-slidepack', { method: 'POST', body: formData });
+                if (res.ok) {
+                    updateStatus(pack.id, 'done');
+                } else {
+                    const errJson = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                    updateStatus(pack.id, 'error', typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson));
+                }
+            } catch (err) {
+                console.error("Slidepack import failed", err);
+                updateStatus(pack.id, 'error', 'Network error');
+            }
+        }));
+
+        // Clear active staging state logic
+        const processingIds = new Set([...pairsToProcess.map(p => p.id), ...packsToProcess.map(p => p.id)]);
+        setPairs(prev => prev.filter(p => !processingIds.has(p.id)));
+        setSlidepacks(prev => prev.filter(s => !processingIds.has(s.id)));
+
         setIsDispatching(false);
-
-        // Notify user vaguely (The Global Bar takes over)
-        // onUploadComplete is for "Redirect to Player" usually.
-        // We probably want to switch to Library view?
-        // The prompt says "spostare l'utente alla Libreria" in previous steps,
-        // but for "Fire & Forget" staying on dashboard to upload MORE is also valid.
-        // Let's NOT redirect automatically, just clear. User sees Global Bar.
     };
 
 
@@ -260,14 +293,12 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
         const pair = pairs.find(p => p.id === id);
         if (!pair) return;
         setPairs(pairs.filter(p => p.id !== id));
-        // Return files to orphans ONLY if not done
-        if (pair.status !== 'done') {
-            setOrphans(prev => [
-                ...prev,
-                { id: generateId(), file: pair.audio, type: 'audio' },
-                { id: generateId(), file: pair.md, type: 'text' }
-            ]);
-        }
+        // Return files to orphans
+        setOrphans(prev => [
+            ...prev,
+            { id: generateId(), file: pair.audio, type: 'audio' },
+            { id: generateId(), file: pair.md, type: 'text' }
+        ]);
     };
 
     const removeOrphan = (id: string) => {
@@ -278,6 +309,10 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
     const removeSlidepack = (id: string) => {
         if (isDispatching) return;
         setSlidepacks(slidepacks.filter(s => s.id !== id));
+    };
+
+    const dismissProcessed = (id: string) => {
+        setProcessedItems(prev => prev.filter(item => item.id !== id));
     };
 
     const totalItems = pairs.length + slidepacks.length;
@@ -299,7 +334,7 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
     };
 
     return (
-        <div className="flex flex-col items-center justify-start min-h-full p-8 text-white font-sans w-full max-w-7xl mx-auto">
+        <div className="flex flex-col items-center justify-start min-h-full p-8 text-white font-sans w-full max-w-7xl mx-auto pb-40">
             {/* Header */}
             <div className="text-center space-y-4 mb-8">
                 <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
@@ -334,6 +369,48 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
                     </p>
                 </div>
             </div>
+
+            {/* PROCESSED QUEUE section */}
+            {processedItems.length > 0 && (
+                <div className="w-full mb-12">
+                    <div className="flex items-center gap-2 mb-4 text-neutral-400">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider">In Elaborazione ({processedItems.length})</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-70">
+                        {processedItems.map(item => (
+                            <div key={item.id} className={cn(
+                                "p-4 rounded-xl border flex items-center justify-between transition-all",
+                                item.status === 'uploading' ? "border-blue-500/30 bg-blue-900/10" :
+                                    item.status === 'done' ? "border-green-500/30 bg-green-900/10" :
+                                        "border-red-500/30 bg-red-900/10"
+                            )}>
+                                <span className="text-sm font-medium truncate flex-1 pr-4 text-white/80">{item.name}</span>
+                                <div className={cn("text-xs flex items-center gap-2",
+                                    item.status === 'uploading' ? "text-blue-400" :
+                                        item.status === 'done' ? "text-green-400" : "text-red-400"
+                                )}>
+                                    {item.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin" />}
+                                    {item.status === 'done' && <CheckCircle className="w-3 h-3" />}
+                                    {item.status === 'error' && <AlertCircle className="w-3 h-3" />}
+
+                                    {item.status === 'uploading' ? 'Caricamento...' :
+                                        item.status === 'done' ? 'Completato' : 'Errore'}
+
+                                    <button
+                                        onClick={() => dismissProcessed(item.id)}
+                                        className="p-1 hover:bg-white/10 rounded ml-2"
+                                    >
+                                        <Trash2 className="w-3 h-3 text-neutral-500" />
+                                    </button>
+                                </div>
+                                {item.error && <div className="hidden">{item.error}</div> /* Potential tooltip in future */}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="h-px bg-neutral-800 w-full mt-8" />
+                </div>
+            )}
 
             {/* Staging Area - Cards */}
             <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-24">
@@ -486,7 +563,7 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
 
             {/* Generate Action Bar */}
             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50">
-                <div className="bg-neutral-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-3xl shadow-2xl flex items-center justify-between gap-6">
+                <div className="bg-neutral-900/90 backdrop-blur-xl border border-neutral-700 p-4 rounded-3xl shadow-2xl flex items-center justify-between gap-6">
 
                     <div className="flex flex-col">
                         <span className="text-sm font-medium text-white flex items-center gap-2">
@@ -506,7 +583,7 @@ export const UploadDashboard: React.FC<UploadDashboardProps> = ({ onUploadComple
                             {isDispatching && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
                             <span className="text-xs text-neutral-400">
                                 {isDispatching
-                                    ? `Elaborazione in corso...`
+                                    ? `Avvio elaborazione...`
                                     : `${pairs.length} Coppie • ${slidepacks.length} Slidepack`
                                 }
                             </span>

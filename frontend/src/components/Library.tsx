@@ -14,6 +14,7 @@ interface SlidePack {
     created_at: string;
     file_path?: string;
     course_id: number;
+    order_index?: number;
 }
 
 interface Course {
@@ -163,6 +164,39 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
         } catch (e) { console.error(e); }
     };
 
+    const handleExportCourse = async (courseId: number) => {
+        try {
+            const course = courses.find(c => c.id === courseId);
+            const courseTitle = course ? course.title : "course_export";
+
+            // Show loading or notification? Simple verify for now.
+            // Ideally should use a toast, but alert is ok for immediate feedback if quick. 
+            // Better: just trigger download.
+
+            const res = await fetch(`http://localhost:8000/export-course/${courseId}`);
+            if (!res.ok) {
+                const err = await res.json();
+                alert(`Export failed: ${err.detail}`);
+                return;
+            }
+
+            // Handle file download
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${courseTitle}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        } catch (e) {
+            console.error("Export failed", e);
+            alert("Export failed due to network error.");
+        }
+    };
+
     // --- Selection Logic ---
     const isSelectionMode = selectedPacks.length > 0;
 
@@ -202,11 +236,12 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
         }
     };
 
-    // --- Drag & Drop for Moving ---
+    // --- Drag & Drop for Moving & Reordering ---
     const handleDragStart = (e: React.DragEvent, packId: number, courseId: number) => {
         e.dataTransfer.setData("packId", packId.toString());
         e.dataTransfer.setData("fromCourseId", courseId.toString());
         e.currentTarget.classList.add("opacity-50");
+        e.dataTransfer.effectAllowed = "move";
     };
 
     const handleDragEnd = (e: React.DragEvent) => {
@@ -228,16 +263,122 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
         const packId = parseInt(e.dataTransfer.getData("packId"));
         const fromCourseId = parseInt(e.dataTransfer.getData("fromCourseId"));
 
-        if (!packId || fromCourseId === targetCourseId) return;
+        if (!packId) return;
 
-        try {
-            await fetch(`http://localhost:8000/slidepacks/${packId}/move`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ course_id: targetCourseId })
-            });
-            fetchCourses();
-        } catch (e) { console.error(e); }
+        // Case 1: Reorder within same course (Append to end if dropped on container)
+        if (fromCourseId === targetCourseId) {
+            const course = courses.find(c => c.id === targetCourseId);
+            if (!course) return;
+
+            // Move to end (highest index)
+            const newPacks = [...course.slidepacks];
+            const draggedIndex = newPacks.findIndex(p => p.id === packId);
+            if (draggedIndex === -1) return;
+
+            // Remove and push to end
+            const [draggedItem] = newPacks.splice(draggedIndex, 1);
+            newPacks.push(draggedItem);
+
+            const newCourses = courses.map(c => c.id === targetCourseId ? { ...c, slidepacks: newPacks } : c);
+            setCourses(newCourses);
+
+            try {
+                await fetch(`http://localhost:8000/courses/${targetCourseId}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pack_ids: newPacks.map(p => p.id) })
+                });
+            } catch (e) {
+                console.error("Reorder failed", e);
+                fetchCourses();
+            }
+        }
+        // Case 2: Move from another course
+        else {
+            try {
+                await fetch(`http://localhost:8000/slidepacks/${packId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_id: targetCourseId })
+                });
+                fetchCourses();
+            } catch (e) { console.error(e); }
+        }
+    };
+
+    // Setup for Reordering within same course
+    const handleCardDrop = async (e: React.DragEvent, targetPack: SlidePack) => {
+        e.preventDefault();
+        e.stopPropagation(); // Stop bubbling to course handler
+        e.currentTarget.classList.remove("scale-105", "ring-4", "ring-blue-500", "z-30");
+
+        const draggedPackId = parseInt(e.dataTransfer.getData("packId"));
+        const fromCourseId = parseInt(e.dataTransfer.getData("fromCourseId"));
+
+        if (!draggedPackId) return;
+
+        // Same course -> Reorder
+        if (fromCourseId === targetPack.course_id) {
+            if (draggedPackId === targetPack.id) return;
+
+            // Find the course
+            const course = courses.find(c => c.id === fromCourseId);
+            if (!course) return;
+
+            // Reorder locally
+            const newPacks = [...course.slidepacks];
+            const draggedIndex = newPacks.findIndex(p => p.id === draggedPackId);
+            const targetIndex = newPacks.findIndex(p => p.id === targetPack.id);
+
+            if (draggedIndex === -1 || targetIndex === -1) return;
+
+            // Remove dragged item
+            const [draggedItem] = newPacks.splice(draggedIndex, 1);
+            // Insert at new position
+            newPacks.splice(targetIndex, 0, draggedItem);
+
+            // Optimistic update
+            const newCourses = courses.map(c =>
+                c.id === fromCourseId ? { ...c, slidepacks: newPacks } : c
+            );
+            setCourses(newCourses);
+
+            // API Call
+            try {
+                await fetch(`http://localhost:8000/courses/${fromCourseId}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pack_ids: newPacks.map(p => p.id) })
+                });
+            } catch (e) {
+                console.error("Reorder failed", e);
+                fetchCourses(); // Revert on fail
+            }
+        }
+        // Different course -> Move handling (delegate or handle here)
+        else {
+            try {
+                await fetch(`http://localhost:8000/slidepacks/${draggedPackId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_id: targetPack.course_id })
+                });
+                fetchCourses();
+            } catch (e) { console.error(e); }
+        }
+    };
+
+    // Visual Feedback
+    const handleCardDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.add("scale-105", "ring-4", "ring-blue-500", "z-30");
+    };
+
+    const handleCardDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove("scale-105", "ring-4", "ring-blue-500", "z-30");
     };
 
 
@@ -321,7 +462,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
                                     {activeCourseMenu === course.id && (
                                         <div className="absolute right-0 top-full mt-2 w-48 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-30 overflow-hidden text-sm">
                                             <button
-                                                onClick={() => { /* Export logic reused if needed */ alert("Exporting..."); }}
+                                                onClick={() => handleExportCourse(course.id)}
                                                 className="w-full text-left px-4 py-3 hover:bg-neutral-800 flex items-center gap-3"
                                             >
                                                 <Download className="w-4 h-4" /> Esporta Corso
@@ -355,24 +496,27 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
                                                 onDragStart={(e) => handleDragStart(e, pack.id, course.id)}
                                                 onDragEnd={handleDragEnd}
                                                 className={cn(
-                                                    "group relative aspect-video bg-neutral-800 rounded-2xl overflow-hidden border border-transparent transition-all",
-                                                    isSelected ? "ring-2 ring-blue-500 bg-neutral-800" : "hover:scale-[1.02] hover:shadow-2xl hover:border-neutral-700",
+                                                    "group relative aspect-video bg-white rounded-2xl overflow-hidden border border-neutral-200 transition-all shadow-sm",
+                                                    isSelected ? "ring-2 ring-blue-500 bg-blue-50" : "hover:scale-[1.02] hover:shadow-xl hover:border-neutral-300",
                                                     isProcessing ? "cursor-wait" : "cursor-pointer"
                                                 )}
+                                                onDragOver={handleCardDragOver}
+                                                onDragLeave={handleCardDragLeave}
+                                                onDrop={(e) => handleCardDrop(e, pack)}
                                                 onClick={() => {
                                                     if (isSelectionMode) toggleSelection(pack.id);
                                                     else if (pack.status === 'completed' && onOpenSlidepack) onOpenSlidepack(pack.id);
                                                 }}
                                             >
                                                 {/* Background / Preview Placeholder */}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
-                                                <div className="absolute inset-0 flex items-center justify-center">
+
+                                                <div className="absolute inset-0 flex items-center justify-center z-10">
                                                     {isProcessing ? (
                                                         <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                                                     ) : pack.status === 'failed' ? (
                                                         <XCircle className="w-10 h-10 text-red-500" />
                                                     ) : (
-                                                        <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg transform active:scale-95" />
+                                                        <Play className="w-12 h-12 text-neutral-900 opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-xl transform active:scale-95" />
                                                     )}
                                                 </div>
 
@@ -390,12 +534,12 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
                                                     }
                                                 </div>
 
-                                                {/* Bottom Info */}
-                                                <div className="absolute bottom-0 inset-x-0 p-4">
+                                                {/* Centered Info */}
+                                                <div className="absolute inset-0 flex flex-col justify-between p-4 z-20 pointer-events-none">
                                                     {editingPackId === pack.id ? (
-                                                        <div className="flex gap-2">
+                                                        <div className="flex gap-2 w-full mt-2 pointer-events-auto">
                                                             <input
-                                                                className="w-full bg-black/60 border border-neutral-600 rounded px-2 py-1 text-sm text-white backdrop-blur-md"
+                                                                className="w-full bg-white border border-neutral-200 rounded px-2 py-1 text-sm text-neutral-900 shadow-sm"
                                                                 value={editTitle}
                                                                 onChange={(e) => setEditTitle(e.target.value)}
                                                                 autoFocus
@@ -409,28 +553,28 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-end justify-between">
-                                                            <div className="min-w-0">
-                                                                <h3 className="font-bold text-white truncate drop-shadow-md pr-2">
+                                                        <>
+                                                            {/* Title at Top */}
+                                                            <div className="w-full text-center mt-1 pointer-events-auto">
+                                                                <h3 className="font-bold text-neutral-900 text-lg leading-tight w-full break-words px-2 drop-shadow-sm select-text">
                                                                     {pack.title}
                                                                 </h3>
-                                                                <p className="text-xs text-neutral-400 flex items-center gap-1 mt-0.5">
-                                                                    {new Date(pack.created_at).toLocaleDateString()}
-                                                                    {pack.status === 'failed' && <span className="text-red-400">• Errore</span>}
-                                                                </p>
                                                             </div>
-                                                            {/* Edit Pencil on Hover */}
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setEditingPackId(pack.id);
-                                                                    setEditTitle(pack.title);
-                                                                }}
-                                                                className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                <Edit2 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
+
+                                                            {/* Bottom Right Actions */}
+                                                            <div className="flex justify-end w-full">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingPackId(pack.id);
+                                                                        setEditTitle(pack.title);
+                                                                    }}
+                                                                    className="pointer-events-auto p-2 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 translate-x-2"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>

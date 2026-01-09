@@ -29,8 +29,29 @@ class WhisperService:
     def transcribe(self, file_path: str):
         print(f"Transcribing {file_path} with faster-whisper...")
 
+        # --- NORMALIZATION STEP ---
+        import os
+        from pydub import AudioSegment
+        
+        # Temp path for normalized audio
+        normalized_path = f"{file_path}_normalized.wav"
+        
+        try:
+            print("Normalizing audio to 16kHz mono...")
+            audio = AudioSegment.from_file(file_path)
+            audio = audio.set_channels(1)
+            audio = audio.set_frame_rate(16000)
+            audio.export(normalized_path, format="wav")
+            print("Normalization complete.")
+            
+            # Use normalized file for transcription
+            transcribe_path = normalized_path
+        except Exception as e:
+            print(f"Normalization failed: {e}. Falling back to original file.")
+            transcribe_path = file_path
+
         segments, info = self.model.transcribe(
-            file_path,
+            transcribe_path,
             language="it",
             initial_prompt="Questa è una lezione universitaria in italiano su argomenti di informatica e machine learning."
         )
@@ -42,6 +63,10 @@ class WhisperService:
                 "end": seg.end,
                 "text": seg.text
             })
+            
+        # Cleanup normalized file if it exists
+        if os.path.exists(normalized_path):
+            os.remove(normalized_path)
 
         print(f"Transcription complete: {len(result)} segments")
         return result

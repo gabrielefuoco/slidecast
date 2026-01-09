@@ -20,6 +20,7 @@ class SlidePack(Base):
     file_path = Column(String) # Path to the JSON/Assets folder
     status = Column(String) # "processing", "completed", "failed"
     created_at = Column(DateTime, default=datetime.utcnow)
+    order_index = Column(Integer, default=0)
     
     # Foreign Key to associate with a course
     course_id = Column(Integer, ForeignKey('courses.id'), nullable=True)
