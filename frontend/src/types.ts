@@ -1,5 +1,8 @@
 export type CardType = 'standard' | 'quiz';
 
+export type Card = StandardCard | QuizCard;
+
+
 export interface StandardCard {
     id: string;
     type: 'standard';

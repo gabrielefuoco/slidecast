@@ -281,9 +281,8 @@ const SlideCard: React.FC<{
 };
 
 import { CardEditor } from './CardEditor';
-import { FlashcardPlayer } from './FlashcardPlayer';
 import { Card } from '../types';
-import { BookOpen, Edit3 } from 'lucide-react';
+import { Edit3 } from 'lucide-react';
 
 // ... (previous imports)
 
@@ -311,7 +310,6 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
 
     // Learning Objects State
     const [isEditorOpen, setIsEditorOpen] = useState(false);
-    const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
     // Auto-scroll to active slide
     useEffect(() => {
@@ -407,17 +405,6 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
                 })}
             </div>
 
-            {/* Review FAB */}
-            {cards.length > 0 && (
-                <button
-                    onClick={() => setIsPlayerOpen(true)}
-                    className="absolute bottom-8 right-8 z-50 flex items-center gap-2 pl-4 pr-5 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:scale-105 hover:shadow-blue-500/30 transition-all font-bold group"
-                >
-                    <BookOpen className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                    <span>Review ({cards.length})</span>
-                </button>
-            )}
-
             {/* Modals */}
             {packId && (
                 <CardEditor
@@ -430,12 +417,6 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
                     }}
                 />
             )}
-
-            <FlashcardPlayer
-                isOpen={isPlayerOpen}
-                onClose={() => setIsPlayerOpen(false)}
-                cards={cards}
-            />
         </div>
     );
 };

@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { UploadDashboard } from './components/UploadDashboard';
 import { SlideViewer } from './components/SlideViewer';
 import { Player } from './components/Player';
+import { FlashcardPlayer } from './components/FlashcardPlayer';
 import { Library } from './components/Library';
 import { cn } from './lib/utils';
-import { LayoutList, Package } from 'lucide-react';
+import { LayoutList, Package, Play, BookOpen, ArrowLeft } from 'lucide-react';
 import JSZip from 'jszip';
 import { Card, Slide, PresentationData } from './types';
 
-type View = 'upload' | 'library' | 'player';
+type View = 'upload' | 'library' | 'player' | 'modeSelect';
 
 function App() {
     const [view, setView] = useState<View>('upload');
@@ -72,9 +73,9 @@ function App() {
             setAudioFile(file);
 
             setCurrentPackId(id);
-            setIsPlaying(true); // Auto-play on navigation
             setCurrentTime(0);  // Reset time
-            setView('player');
+            setIsPlaying(false); // Don't auto-play, show mode selection
+            setView('modeSelect'); // Show mode selection screen
 
             // Force scroll to top after a short delay to allow rendering
             setTimeout(() => {
@@ -133,6 +134,9 @@ function App() {
         URL.revokeObjectURL(url);
     };
 
+    // Learning Objects State
+    const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+
     // Navbar component to reduce duplication logic
     const Navbar = () => (
         <header className="h-16 border-b border-white/10 flex items-center px-8 justify-between bg-neutral-900/50 backdrop-blur-md z-40 shrink-0">
@@ -163,6 +167,17 @@ function App() {
                     <div className="text-sm font-medium text-neutral-400 hidden md:block truncate max-w-xs">{data.metadata?.title}</div>
                     <div className="flex items-center gap-2">
 
+                        {data.cards && data.cards.length > 0 && (
+                            <button
+                                onClick={() => setIsPlayerOpen(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium transition-all border border-white/10"
+                                title="Review Flashcards"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                                Review ({data.cards.length})
+                            </button>
+                        )}
+
                         <button
                             onClick={handleExportSlidepack}
                             className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-lg text-xs font-medium transition-all"
@@ -191,6 +206,88 @@ function App() {
                         if (newPlaylist) setPlaylist(newPlaylist);
                         loadSlidepack(id);
                     }} />
+                )}
+
+                {/* Mode Selection Screen */}
+                {view === 'modeSelect' && data && (
+                    <div className="flex flex-col items-center justify-center h-full p-8">
+                        {/* Back Button */}
+                        <button
+                            onClick={() => setView('library')}
+                            className="absolute top-24 left-8 flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                            Torna alla libreria
+                        </button>
+
+                        {/* Title */}
+                        <div className="text-center mb-12">
+                            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                                {data.metadata?.title || 'Slidepack'}
+                            </h1>
+                            <p className="text-neutral-400">
+                                {data.slides?.length || 0} slide • {data.cards?.length || 0} flashcard/quiz
+                            </p>
+                        </div>
+
+                        {/* Mode Cards */}
+                        <div className="flex flex-col md:flex-row gap-6 max-w-3xl w-full">
+                            {/* Watch Lesson Card */}
+                            <button
+                                onClick={() => {
+                                    setIsPlaying(true);
+                                    setView('player');
+                                }}
+                                className="flex-1 group bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-3xl p-8 text-left transition-all hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20"
+                            >
+                                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                    <Play className="w-8 h-8 text-white" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-white mb-2">
+                                    Guarda Lezione
+                                </h2>
+                                <p className="text-white/70">
+                                    Riproduci le slide con l'audio della lezione
+                                </p>
+                                <div className="mt-6 flex items-center gap-2 text-white/60 text-sm">
+                                    <span>{data.slides?.length || 0} slide</span>
+                                    <span>•</span>
+                                    <span>{Math.floor((data.metadata?.duration || 0) / 60)} min</span>
+                                </div>
+                            </button>
+
+                            {/* Study Quiz Card */}
+                            <button
+                                onClick={() => setIsPlayerOpen(true)}
+                                disabled={!data.cards || data.cards.length === 0}
+                                className={cn(
+                                    "flex-1 group rounded-3xl p-8 text-left transition-all",
+                                    data.cards && data.cards.length > 0
+                                        ? "bg-gradient-to-br from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-emerald-500/20"
+                                        : "bg-neutral-800 opacity-50 cursor-not-allowed"
+                                )}
+                            >
+                                <div className={cn(
+                                    "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-transform",
+                                    data.cards && data.cards.length > 0 ? "bg-white/20 group-hover:scale-110" : "bg-neutral-700"
+                                )}>
+                                    <BookOpen className="w-8 h-8 text-white" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-white mb-2">
+                                    Studia / Quiz
+                                </h2>
+                                <p className="text-white/70">
+                                    {data.cards && data.cards.length > 0
+                                        ? "Ripassa con flashcard e quiz interattivi"
+                                        : "Nessuna flashcard disponibile"
+                                    }
+                                </p>
+                                <div className="mt-6 flex items-center gap-2 text-white/60 text-sm">
+                                    <span>{data.cards?.length || 0} flashcard/quiz</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                 )}
 
                 {view === 'player' && data && audioUrl && (
@@ -244,6 +341,13 @@ function App() {
                     </div>
                 )}
             </div>
+
+            {/* Global Modals */}
+            <FlashcardPlayer
+                isOpen={isPlayerOpen}
+                onClose={() => setIsPlayerOpen(false)}
+                cards={data?.cards || []}
+            />
         </div>
     );
 }
