@@ -4,26 +4,9 @@ import { SlideViewer } from './components/SlideViewer';
 import { Player } from './components/Player';
 import { Library } from './components/Library';
 import { cn } from './lib/utils';
-import { LayoutList, Package, Home, PlusCircle } from 'lucide-react';
+import { LayoutList, Package } from 'lucide-react';
 import JSZip from 'jszip';
-
-interface Slide {
-    id: number;
-    timestamp_start: number;
-    timestamp_end: number;
-    title: string;
-    content: string[];
-    math_formulas: string[];
-    deep_dive?: string;
-}
-
-interface PresentationData {
-    metadata: {
-        title: string;
-        duration: number;
-    };
-    slides: Slide[];
-}
+import { Card, Slide, PresentationData } from './types';
 
 type View = 'upload' | 'library' | 'player';
 
@@ -95,10 +78,9 @@ function App() {
 
             // Force scroll to top after a short delay to allow rendering
             setTimeout(() => {
-                const firstSlide = result.presentation.slides[0];
-                if (firstSlide) {
+                if (result.presentation.slides && result.presentation.slides.length > 0) {
+                    const firstSlide = result.presentation.slides[0];
                     document.getElementById(`slide-thumb-${firstSlide.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Also dispatch a custom event or use ref if needed for SlideViewer
                 }
             }, 100);
         } catch (err) {
@@ -219,8 +201,13 @@ function App() {
                                 {data.slides.length > 0 ? (
                                     <SlideViewer
                                         slides={data.slides}
+                                        cards={data.cards}
+                                        packId={currentPackId || undefined}
                                         currentSlideId={activeSlideId}
                                         onSlideClick={(timestamp) => setCurrentTime(timestamp + 0.1)}
+                                        onCardsUpdate={(newCards) => {
+                                            setData(prev => prev ? { ...prev, cards: newCards } : null);
+                                        }}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-neutral-500">

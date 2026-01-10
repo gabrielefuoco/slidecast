@@ -3,7 +3,8 @@ import os
 import logging
 import zipfile
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Union
+from models import StandardCard, QuizCard, PresentationManifest
 
 from dotenv import load_dotenv
 
@@ -275,7 +276,7 @@ async def generate_slides(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/")
+@app.get("/api/health")
 def read_root():
     return {"message": "AudioSlide AI Backend is ready"}
 
@@ -798,9 +799,65 @@ def move_slidepack(pack_id: int, request: MoveRequest):
                 raise HTTPException(status_code=500, detail=f"Failed to move files: {e}")
 
     pack.course_id = request.course_id
-    db.commit()
+
+@app.patch("/slidepacks/{pack_id}/cards")
+def update_slidepack_cards(pack_id: int, cards: List[Union[QuizCard, StandardCard]]):
+    db = SessionLocal()
+    pack = db.query(SlidePack).filter(SlidePack.id == pack_id).first()
+    
+    if not pack:
+        db.close()
+        raise HTTPException(status_code=404, detail="SlidePack not found")
+
+    if not pack.file_path or not os.path.exists(pack.file_path):
+        db.close()
+        raise HTTPException(status_code=404, detail="Slidepack files missing")
+    
+    json_path = os.path.join(pack.file_path, "slides.json")
+    
+    try:
+        import json
+        
+        # 1. Read existing slides.json
+        if not os.path.exists(json_path):
+             # Should be rare if pack exists
+             raise HTTPException(status_code=404, detail="slides.json not found")
+             
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # 2. Update cards field
+        # Convert Pydantic models to dicts
+        cards_data = [card.model_dump() for card in cards]
+        data['cards'] = cards_data
+        
+        # 3. Validate entire manifest (optional but good for safety)
+        # We try to validate the whole thing against PresentationManifest to be sure we didn't break anything
+        # (Though we modified a dictionary, so we are just adding 'cards')
+        try:
+            PresentationManifest(**data)
+        except Exception as validation_err:
+             logger.error(f"Validation failed after card injection: {validation_err}")
+             # We might still want to save if it's just a partial issue, but let's be strict if requested.
+             # User said: "Backend acts as customs... accepts JSON... verifies it respects schema"
+             # So yes, strict.
+             raise HTTPException(status_code=422, detail=f"Resulting slides.json would be invalid: {str(validation_err)}")
+
+        # 4. Save back to disk
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            
+        logger.info(f"Updated cards for pack {pack_id}: {len(cards)} cards added/replaced.")
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Failed to update cards: {e}", exc_info=True)
+        db.close()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        
     db.close()
-    return {"message": "SlidePack moved"}
+    return {"message": "Cards updated successfully", "count": len(cards)}
 
 @app.delete("/slidepacks/{pack_id}")
 def delete_slidepack(pack_id: int):
@@ -950,40 +1007,71 @@ def get_pending_jobs():
 # --- FRONTEND SERVING (SPA) ---
 # Must be at the end to avoid capturing API routes
 
-# Determine path to client build
-# If running frozen (PyInstaller), look in sys._MEIPASS/client or adjacent
-import sys
-# Base dir handling for frozen apps
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# --- FRONTEND SERVING (SPA) ---
 
-CLIENT_DIR = os.path.join(BASE_DIR, "client")
+import sys
+
+# Logica robusta per trovare i percorsi sia in Dev che in EXE (PyInstaller v5 e v6+)
+if getattr(sys, 'frozen', False):
+    # Se siamo in un eseguibile (frozen)
+    base_exe_dir = os.path.dirname(sys.executable)
+    
+    # 1. Cerca 'client' accanto all'exe
+    path_1 = os.path.join(base_exe_dir, "client")
+    # 2. Cerca 'client' dentro '_internal' (Nuovo standard PyInstaller)
+    path_2 = os.path.join(base_exe_dir, "_internal", "client")
+    
+    if os.path.exists(path_1):
+        CLIENT_DIR = path_1
+    elif os.path.exists(path_2):
+        CLIENT_DIR = path_2
+    else:
+        # Fallback: settalo comunque al path_1 per far vedere l'errore giusto nel log
+        CLIENT_DIR = path_1
+else:
+    # Se siamo in sviluppo (python main.py)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    CLIENT_DIR = os.path.join(BASE_DIR, "client")
 
 # If client dir exists, mount assets and serve SPA
 if os.path.exists(CLIENT_DIR):
     logger.info(f"Serving frontend from {CLIENT_DIR}")
     
-    # Mount assets specifically for performance
+    assets_path = os.path.join(CLIENT_DIR, "assets")
     assets_path = os.path.join(CLIENT_DIR, "assets")
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
-    # Catch-all for SPA
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # 1. Check if file exists in client root (e.g. vite.svg, favicon.ico)
-        file_path = os.path.join(CLIENT_DIR, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-            
-        # 2. Fallback to index.html for everything else (routes)
+    @app.get("/")
+    async def serve_index():
         index_path = os.path.join(CLIENT_DIR, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
-        
-        return HTTPException(status_code=404, detail="Frontend not found")
+        return HTTPException(status_code=404, detail="Index not found")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(CLIENT_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_path = os.path.join(CLIENT_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return HTTPException(status_code=404, detail="Frontend file not found")
 else:
-    logger.warning("Client directory not found. Frontend will not be served.")
+    logger.warning(f"Client directory not found at: {CLIENT_DIR}. Frontend will not be served.")
+
+if __name__ == "__main__":
+    import uvicorn
+    import webbrowser
+    from threading import Timer
+
+    def open_browser():
+        webbrowser.open("http://127.0.0.1:8000")
+
+    # Schedule browser open slightly after server start
+    Timer(1.5, open_browser).start()
+    
+    # Use 0.0.0.0 to be accessible, though localhost is fine too.
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 

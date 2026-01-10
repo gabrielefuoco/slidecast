@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel
 
 class Slide(BaseModel):
@@ -14,6 +14,23 @@ class PresentationMetadata(BaseModel):
     title: str
     duration: float
 
+
+class StandardCard(BaseModel):
+    id: str
+    type: str = "standard"
+    question: str
+    hint: Optional[str] = None
+    answer: str
+
+class QuizCard(BaseModel):
+    id: str
+    type: str = "quiz"
+    question: str
+    options: List[str]
+    correct_index: int
+    explanation: Optional[str] = None
+
 class PresentationManifest(BaseModel):
     metadata: PresentationMetadata
     slides: List[Slide]
+    cards: List[Union[StandardCard, QuizCard]] = []

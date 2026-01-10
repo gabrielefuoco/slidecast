@@ -280,9 +280,38 @@ const SlideCard: React.FC<{
     );
 };
 
-export const SlideViewer: React.FC<SlideViewerProps> = ({ slides, currentSlideId, onSlideClick }) => {
+import { CardEditor } from './CardEditor';
+import { FlashcardPlayer } from './FlashcardPlayer';
+import { Card } from '../types';
+import { BookOpen, Edit3 } from 'lucide-react';
+
+// ... (previous imports)
+
+interface SlideViewerProps {
+    slides: Slide[];
+    cards?: Card[];
+    packId?: number;
+    currentSlideId: number;
+    onSlideClick?: (timestamp: number) => void;
+    onCardsUpdate?: (newCards: Card[]) => void;
+}
+
+// ... (SlideCard component remains same)
+
+export const SlideViewer: React.FC<SlideViewerProps> = ({
+    slides,
+    cards = [],
+    packId,
+    currentSlideId,
+    onSlideClick,
+    onCardsUpdate
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const activeSlideRef = useRef<HTMLDivElement>(null);
+
+    // Learning Objects State
+    const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
     // Auto-scroll to active slide
     useEffect(() => {
@@ -298,68 +327,115 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({ slides, currentSlideId
     const activeIndex = slides.findIndex(s => s.id === currentSlideId);
 
     return (
-        <div
-            ref={containerRef}
-            className="flex flex-col h-full w-full gap-3 overflow-y-auto py-4 px-4 scroll-smooth items-center"
-            style={{ perspective: '1200px' }}
-        >
-            {slides.map((slide, index) => {
-                // Calculate 3D effects based on position relative to active slide
-                const distance = index - activeIndex;
-
-                let wrapperStyle: React.CSSProperties = {};
-                let overlayOpacity = 0;
-
-                if (distance < 0) {
-                    // Slides ABOVE active: push back and darken
-                    const absDistance = Math.abs(distance);
-                    wrapperStyle = {
-                        transform: `translateZ(-${absDistance * 30}px) rotateX(3deg)`,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    };
-                    overlayOpacity = Math.min(0.35, absDistance * 0.12);
-                } else if (distance === 0) {
-                    // ACTIVE slide: No scaling, no Z-translation to ensure pixel-perfect rendering
-                    wrapperStyle = {
-                        transform: 'translateZ(0) scale(1)',
-                        zIndex: 50, // Ensure it's on top
-                        boxShadow: '0 30px 60px -15px rgba(0,0,0,0.5), 0 15px 30px -10px rgba(0,0,0,0.35)',
-                    };
-                } else {
-                    // Slides BELOW active: recede into distance
-                    wrapperStyle = {
-                        transform: `translateZ(-${distance * 25}px) rotateX(-2deg)`,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    };
-                    overlayOpacity = Math.min(0.2, distance * 0.06);
-                }
-
-                return (
-                    <div
-                        key={slide.id}
-                        ref={slide.id === currentSlideId ? activeSlideRef : null}
-                        className="w-full max-w-4xl transition-all duration-500 relative rounded-xl"
-                        style={{
-                            ...wrapperStyle,
-                            transformStyle: 'preserve-3d',
-                            backfaceVisibility: 'hidden', // Improve rendering performance
-                        }}
+        <div className="relative w-full h-full">
+            {/* Toolbar / Actions */}
+            <div className="absolute top-4 right-6 z-40 flex items-center gap-2">
+                {packId && (
+                    <button
+                        onClick={() => setIsEditorOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-sm font-medium text-white/80 hover:text-white transition shadow-sm border border-white/5"
+                        title="Manage Learning Objects (JSON)"
                     >
-                        {/* Dark overlay for depth effect */}
-                        {overlayOpacity > 0 && (
-                            <div
-                                className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent rounded-xl pointer-events-none z-10 transition-opacity duration-500"
-                                style={{ opacity: overlayOpacity }}
+                        <Edit3 className="w-4 h-4" />
+                        <span>Manage Cards</span>
+                    </button>
+                )}
+            </div>
+
+            {/* Scroll Container */}
+            <div
+                ref={containerRef}
+                className="flex flex-col h-full w-full gap-3 overflow-y-auto py-16 px-4 scroll-smooth items-center"
+                style={{ perspective: '1200px' }}
+            >
+                {slides.map((slide, index) => {
+                    // Calculate 3D effects based on position relative to active slide
+                    const distance = index - activeIndex;
+
+                    let wrapperStyle: React.CSSProperties = {};
+                    let overlayOpacity = 0;
+
+                    if (distance < 0) {
+                        // Slides ABOVE active: push back and darken
+                        const absDistance = Math.abs(distance);
+                        wrapperStyle = {
+                            transform: `translateZ(-${absDistance * 30}px) rotateX(3deg)`,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        };
+                        overlayOpacity = Math.min(0.35, absDistance * 0.12);
+                    } else if (distance === 0) {
+                        // ACTIVE slide: No scaling, no Z-translation to ensure pixel-perfect rendering
+                        wrapperStyle = {
+                            transform: 'translateZ(0) scale(1)',
+                            zIndex: 50, // Ensure it's on top
+                            boxShadow: '0 30px 60px -15px rgba(0,0,0,0.5), 0 15px 30px -10px rgba(0,0,0,0.35)',
+                        };
+                    } else {
+                        // Slides BELOW active: recede into distance
+                        wrapperStyle = {
+                            transform: `translateZ(-${distance * 25}px) rotateX(-2deg)`,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                        };
+                        overlayOpacity = Math.min(0.2, distance * 0.06);
+                    }
+
+                    return (
+                        <div
+                            key={slide.id}
+                            ref={slide.id === currentSlideId ? activeSlideRef : null}
+                            className="w-full max-w-4xl transition-all duration-500 relative rounded-xl"
+                            style={{
+                                ...wrapperStyle,
+                                transformStyle: 'preserve-3d',
+                                backfaceVisibility: 'hidden', // Improve rendering performance
+                            }}
+                        >
+                            {/* Dark overlay for depth effect */}
+                            {overlayOpacity > 0 && (
+                                <div
+                                    className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent rounded-xl pointer-events-none z-10 transition-opacity duration-500"
+                                    style={{ opacity: overlayOpacity }}
+                                />
+                            )}
+                            <SlideCard
+                                slide={slide}
+                                isActive={slide.id === currentSlideId}
+                                onClick={() => onSlideClick?.(slide.timestamp_start)}
                             />
-                        )}
-                        <SlideCard
-                            slide={slide}
-                            isActive={slide.id === currentSlideId}
-                            onClick={() => onSlideClick?.(slide.timestamp_start)}
-                        />
-                    </div>
-                );
-            })}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Review FAB */}
+            {cards.length > 0 && (
+                <button
+                    onClick={() => setIsPlayerOpen(true)}
+                    className="absolute bottom-8 right-8 z-50 flex items-center gap-2 pl-4 pr-5 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:scale-105 hover:shadow-blue-500/30 transition-all font-bold group"
+                >
+                    <BookOpen className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                    <span>Review ({cards.length})</span>
+                </button>
+            )}
+
+            {/* Modals */}
+            {packId && (
+                <CardEditor
+                    isOpen={isEditorOpen}
+                    onClose={() => setIsEditorOpen(false)}
+                    currentCards={cards}
+                    packId={packId}
+                    onSaveSuccess={(newCards) => {
+                        onCardsUpdate?.(newCards);
+                    }}
+                />
+            )}
+
+            <FlashcardPlayer
+                isOpen={isPlayerOpen}
+                onClose={() => setIsPlayerOpen(false)}
+                cards={cards}
+            />
         </div>
     );
 };

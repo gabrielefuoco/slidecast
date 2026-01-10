@@ -57,7 +57,7 @@ def main():
     if os.path.exists("build"): shutil.rmtree("build")
     if os.path.exists("dist"): shutil.rmtree("dist")
     
-    run_command("pyinstaller slidecast.spec", cwd=base_dir)
+    run_command(f"\"{sys.executable}\" -m PyInstaller slidecast.spec", cwd=base_dir)
 
     # 4. Post-Build: Copy FFMPEG if present
     if os.path.exists(ffmpeg_exe):
