@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { GlobalProgressBar } from './GlobalProgressBar';
+import { API_BASE } from '../config';
 
 interface SlidePack {
     id: number;
@@ -86,7 +87,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
     const fetchCourses = async () => {
         try {
-            const res = await fetch('http://localhost:8000/courses');
+            const res = await fetch(`${API_BASE}/courses`);
             if (res.ok) {
                 const data = await res.json();
                 setCourses(data);
@@ -121,7 +122,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
     const handleDeleteCourse = async (id: number) => {
         if (!confirm("Are you sure? This will delete all lessons in this course.")) return;
         try {
-            await fetch(`http://localhost:8000/courses/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/courses/${id}`, { method: 'DELETE' });
             fetchCourses();
         } catch (e) {
             console.error(e);
@@ -130,7 +131,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
     const handleDeletePack = async (id: number) => {
         try {
-            await fetch(`http://localhost:8000/slidepacks/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/slidepacks/${id}`, { method: 'DELETE' });
             // If deleting selected items, clear selection
             if (selectedPacks.includes(id)) {
                 setSelectedPacks(prev => prev.filter(p => p !== id));
@@ -143,7 +144,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
     const handleRenameCourse = async (id: number) => {
         try {
-            await fetch(`http://localhost:8000/courses/${id}`, {
+            await fetch(`${API_BASE}/courses/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title: editTitle })
@@ -155,7 +156,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
     const handleRenamePack = async (id: number) => {
         try {
-            await fetch(`http://localhost:8000/slidepacks/${id}/rename`, {
+            await fetch(`${API_BASE}/slidepacks/${id}/rename`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title: editTitle })
@@ -174,7 +175,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
             // Ideally should use a toast, but alert is ok for immediate feedback if quick. 
             // Better: just trigger download.
 
-            const res = await fetch(`http://localhost:8000/export-course/${courseId}`);
+            const res = await fetch(`${API_BASE}/export-course/${courseId}`);
             if (!res.ok) {
                 const err = await res.json();
                 alert(`Export failed: ${err.detail}`);
@@ -220,7 +221,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
     const handleMergeConfirm = async (title: string) => {
         try {
-            await fetch('http://localhost:8000/slidepacks/merge', {
+            await fetch(`${API_BASE}/slidepacks/merge`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -284,7 +285,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
             setCourses(newCourses);
 
             try {
-                await fetch(`http://localhost:8000/courses/${targetCourseId}/reorder`, {
+                await fetch(`${API_BASE}/courses/${targetCourseId}/reorder`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ pack_ids: newPacks.map(p => p.id) })
@@ -297,7 +298,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
         // Case 2: Move from another course
         else {
             try {
-                await fetch(`http://localhost:8000/slidepacks/${packId}/move`, {
+                await fetch(`${API_BASE}/slidepacks/${packId}/move`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ course_id: targetCourseId })
@@ -346,7 +347,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
 
             // API Call
             try {
-                await fetch(`http://localhost:8000/courses/${fromCourseId}/reorder`, {
+                await fetch(`${API_BASE}/courses/${fromCourseId}/reorder`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ pack_ids: newPacks.map(p => p.id) })
@@ -359,7 +360,7 @@ export const Library: React.FC<LibraryProps> = ({ onOpenSlidepack }) => {
         // Different course -> Move handling (delegate or handle here)
         else {
             try {
-                await fetch(`http://localhost:8000/slidepacks/${draggedPackId}/move`, {
+                await fetch(`${API_BASE}/slidepacks/${draggedPackId}/move`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ course_id: targetPack.course_id })

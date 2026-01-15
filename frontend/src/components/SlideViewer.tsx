@@ -198,7 +198,7 @@ const SlideCard: React.FC<{
         >
             {/* Title */}
             <h2 className="text-lg lg:text-xl font-bold text-neutral-800 mb-3">
-                {slide.title}
+                {renderContent(slide.title)}
             </h2>
 
             {/* Content */}

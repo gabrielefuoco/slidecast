@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle, XCircle, ChevronUp, ChevronDown, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { API_BASE } from '../config';
 
 interface Job {
     id: number;
@@ -17,7 +18,7 @@ export const GlobalProgressBar: React.FC = () => {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch('http://localhost:8000/jobs/pending');
+            const res = await fetch(`${API_BASE}/jobs/pending`);
             if (res.ok) {
                 const data = await res.json();
                 const currentJobs: Job[] = data.jobs;

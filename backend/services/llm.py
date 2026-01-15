@@ -1,13 +1,13 @@
 import os
 import json
 import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, RetryError
 from mistralai import Mistral
 from models import PresentationManifest
 from services.chunking import ChunkingService
 
 # Configuration for robust calls
-MAX_CONCURRENT_REQUESTS = 5
+MAX_CONCURRENT_REQUESTS = 2
 semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
 class LLMService:
@@ -118,7 +118,7 @@ class LLMService:
         return base_prompt
 
     @retry(
-        stop=stop_after_attempt(5), 
+        stop=stop_after_attempt(10), 
         wait=wait_exponential(multiplier=1, min=2, max=60),
         retry=retry_if_exception_type(Exception)
     )
@@ -215,7 +215,17 @@ class LLMService:
         
         for result in chunk_results:
             if isinstance(result, Exception):
-                print(f"[LLM] Errore in un chunk: {result}")
+                error_msg = str(result)
+                if isinstance(result, RetryError):
+                    # Tenta di recuperare l'eccezione originale dall'ultimo tentativo
+                    try:
+                        last_exception = result.last_attempt.exception()
+                        if last_exception:
+                            error_msg = f"{type(last_exception).__name__}: {str(last_exception)}"
+                    except:
+                        pass
+                
+                print(f"[LLM] Errore in un chunk dopo i tentativi: {error_msg}")
                 continue
             
             for slide in result:

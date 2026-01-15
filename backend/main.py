@@ -1,5 +1,6 @@
 import shutil
 import os
+import sys
 import logging
 import zipfile
 import uuid
@@ -11,10 +12,40 @@ from dotenv import load_dotenv
 # Load environment variables from .env file BEFORE importing services
 load_dotenv()
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import mimetypes
+
+# Fix mime types on Windows
+mimetypes.init()
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("audio/mpeg", ".mp3")
+mimetypes.add_type("audio/wav", ".wav")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Directory Setup Logic (Moved to top level)
+# This ensures paths are correct immediately whether in Dev or PyInstaller
+# ----------------------------------------------------------------------
+if getattr(sys, 'frozen', False):
+    APP_BASE_DIR = os.path.dirname(sys.executable)
+    print(f"DEBUG: Running in Frozen Mode. Base Dir: {APP_BASE_DIR}")
+else:
+    APP_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    print(f"DEBUG: Running in Dev Mode. Base Dir: {APP_BASE_DIR}")
+
+STORAGE_DIR = os.path.join(APP_BASE_DIR, "storage")
+print(f"DEBUG: STORAGE_DIR configured at: {STORAGE_DIR}")
+
+# DB File is also critical
+DB_PATH = os.path.join(APP_BASE_DIR, "slidecast.db")
+print(f"DEBUG: DB_PATH configured at: {DB_PATH}")
+# ----------------------------------------------------------------------
 from services.whisper import WhisperService
 from services.llm import LLMService
 from services.sync import SyncService
@@ -22,10 +53,38 @@ from pydub import AudioSegment
 
 
 # Setup Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# This line is now redundant due to the new logging setup above.
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if request.url.path.startswith("/storage"):
+        print(f"DEBUG_HTTP: Request to {request.url.path}")
+        try:
+            response = await call_next(request)
+            ct = response.headers.get('content-type')
+            cl = response.headers.get('content-length')
+            print(f"DEBUG_HTTP: Response {response.status_code} CT:{ct} Len:{cl}")
+            
+            # Additional debug for headers
+            # print(f"DEBUG_HTTP: All Headers: {response.headers}")
+            return response
+        except Exception as e:
+            print(f"DEBUG_HTTP: Error processing request: {e}")
+            raise e
+    return await call_next(request)
+
+# Determine base directory for storage (works both in dev and frozen PyInstaller mode)
+# This block is now redundant due to the new directory setup above.
+# if getattr(sys, 'frozen', False):
+#     APP_BASE_DIR = os.path.dirname(sys.executable)
+# else:
+#     APP_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# STORAGE_DIR = os.path.join(APP_BASE_DIR, "storage")
+os.makedirs(STORAGE_DIR, exist_ok=True)
 
 # Create temp directory for serving audio files
 os.makedirs("temp/audio", exist_ok=True)
@@ -111,7 +170,8 @@ def import_slidepack(slidepack: UploadFile = File(...)):
                         db.refresh(pack)
                         
                         # Prepara destinazione
-                        output_dir = f"storage/courses/{course.id}/{pack.id}"
+                        # Usa STORAGE_DIR assoluto per filesystem
+                        output_dir = os.path.join(STORAGE_DIR, "courses", str(course.id), str(pack.id))
                         os.makedirs(output_dir, exist_ok=True)
                         pack.file_path = output_dir
                         
@@ -182,7 +242,7 @@ def import_slidepack(slidepack: UploadFile = File(...)):
                 db.refresh(pack)
                 
                 # Prepare destination
-                output_dir = f"storage/courses/{course.id}/{pack.id}"
+                output_dir = os.path.join(STORAGE_DIR, "courses", str(course.id), str(pack.id))
                 os.makedirs(output_dir, exist_ok=True)
                 pack.file_path = output_dir
                 
@@ -398,7 +458,7 @@ async def process_batch_queue(files_data: List[dict], course_id: int):
             
             # 4. Salva il risultato su disco (come se fosse un export)
             # Struttura: storage/courses/{course_id}/{pack_id}/
-            output_dir = f"storage/courses/{course_id}/{new_pack.id}"
+            output_dir = os.path.join(STORAGE_DIR, "courses", str(course_id), str(new_pack.id))
             os.makedirs(output_dir, exist_ok=True)
             
             # Salva slides.json
@@ -580,9 +640,6 @@ def export_course(course_id: int):
 
 
 # New: Mount storage for serving persisted files
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STORAGE_DIR = os.path.join(BASE_DIR, "storage")
-os.makedirs(STORAGE_DIR, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=STORAGE_DIR), name="storage")
 
 @app.get("/slidepack/{pack_id}")
@@ -619,20 +676,34 @@ def get_slidepack(pack_id: int):
         
     # Find Audio File
     audio_filename = None
-    for f in os.listdir(pack.file_path):
-        if f.startswith("audio."):
-            audio_filename = f
-            break
+    if os.path.exists(pack.file_path):
+        for f in os.listdir(pack.file_path):
+            if f.startswith("audio."):
+                audio_filename = f
+                # Log file details for debugging
+                f_path = os.path.join(pack.file_path, f)
+                try:
+                    size = os.path.getsize(f_path)
+                    print(f"DEBUG_PACK: Found audio {f}. Size: {size} bytes. Path: {f_path}")
+                except Exception as ex:
+                    print(f"DEBUG_PACK: Error checking file {f}: {ex}")
+                break
             
     if not audio_filename:
+        print("DEBUG_PACK: No audio file found in directory!")
         db.close()
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     # Construct URL
-    # file_path is something like "storage/courses/1/5"
-    # we need relative path from "storage/" -> "courses/1/5"
-    rel_path = os.path.relpath(pack.file_path, "storage").replace("\\", "/")
+    try:
+        rel_path = os.path.relpath(pack.file_path, STORAGE_DIR).replace("\\", "/")
+        print(f"DEBUG_PACK: RelPath calculated: {rel_path}")
+    except ValueError as e:
+        rel_path = f"courses/{pack.course_id}/{pack.id}"
+        print(f"DEBUG_PACK: RelPath validation error: {e}. Using fallback: {rel_path}")
+        
     audio_url = f"/storage/{rel_path}/{audio_filename}"
+    print(f"DEBUG_PACK: Returning Audio URL: {audio_url}")
     
     db.close()
     
@@ -783,11 +854,12 @@ def move_slidepack(pack_id: int, request: MoveRequest):
     
     old_path = pack.file_path
     if old_path and os.path.exists(old_path):
-        new_dir = f"storage/courses/{request.course_id}/{pack.id}"
+        new_dir = os.path.join(STORAGE_DIR, "courses", str(request.course_id), str(pack.id))
         if old_path != new_dir:
             try:
                 # Ensure target parent exists
-                os.makedirs(f"storage/courses/{request.course_id}", exist_ok=True)
+                course_dir = os.path.join(STORAGE_DIR, "courses", str(request.course_id))
+                os.makedirs(course_dir, exist_ok=True)
                 shutil.move(old_path, new_dir)
                 pack.file_path = new_dir
             except Exception as e:

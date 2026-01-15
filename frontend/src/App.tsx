@@ -8,6 +8,7 @@ import { cn } from './lib/utils';
 import { LayoutList, Package, Play, BookOpen, ArrowLeft } from 'lucide-react';
 import JSZip from 'jszip';
 import { Card, Slide, PresentationData } from './types';
+import { API_BASE } from './config';
 
 type View = 'upload' | 'library' | 'player' | 'modeSelect';
 
@@ -53,17 +54,18 @@ function App() {
     }, [activeSlideId, view]);
 
 
+
     // Helper to load a slidepack by ID
     const loadSlidepack = async (id: number) => {
         try {
-            const res = await fetch(`http://localhost:8000/slidepack/${id}`);
+            const res = await fetch(`${API_BASE}/slidepack/${id}`);
             if (!res.ok) throw new Error("Failed to load slidepack");
             const result = await res.json();
 
             setData(result.presentation);
 
             // Fetch audio blob to enable export later
-            const audioUrl = `http://localhost:8000${result.audio_url}`;
+            const audioUrl = `${API_BASE}${result.audio_url}`;
             setAudioUrl(audioUrl);
 
             const audioRes = await fetch(audioUrl);
